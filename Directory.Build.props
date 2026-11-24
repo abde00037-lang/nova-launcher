@@ -1,0 +1,7 @@
+<Project>
+  <!-- Source version; release workflow verifies that the tag matches. -->
+  <PropertyGroup>
+    <Version>2.1.3</Version>
+    <InformationalVersion>$(Version)</InformationalVersion>
+  </PropertyGroup>
+</Project>

@@ -6,6 +6,14 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+if (args.Length == 3 && args[0] == "--download-worker")
+{
+    using var workerDownloader = new Downloader(2);
+    var workerResult = await workerDownloader.EnsureAsync(args[2], args[1], null);
+    if (workerResult != FetchResult.Downloaded && workerResult != FetchResult.AlreadyValid) Environment.ExitCode = 1;
+    return;
+}
+
 string root = Path.Combine(Path.GetTempPath(), "nova-regression-" + Guid.NewGuid().ToString("N"));
 try
 {
@@ -38,6 +46,19 @@ try
         Check(accounts.Find(account.Id)?.RefreshToken == account.RefreshToken, "encrypted token round trip");
         accounts.Save(account);
         Check(!File.ReadAllText(file).Contains(account.RefreshToken!), "new token protected");
+    }
+    await SecurityRegression.Run(root);
+    if (args.Length >= 1 && File.Exists(args[0]))
+    {
+        string realArchiveOutput = Path.Combine(root, "real-archive");
+        int realCount = NativeExtractor.ExtractAll(new[] { args[0] }, realArchiveOutput);
+        Check(realCount > 0 && File.Exists(Path.Combine(realArchiveOutput, "Nova.Core.dll")), "real release archive extracts with limits and CRC verification");
+    }
+    if (args.Length >= 2 && File.Exists(args[1]))
+    {
+        string nativeOutput = Path.Combine(root, "real-native");
+        int nativeCount = NativeExtractor.ExtractAll(new[] { args[1] }, nativeOutput);
+        Check(nativeCount > 0 && Directory.GetFiles(nativeOutput, "*.dll", SearchOption.AllDirectories).Length > 0, "real Minecraft LWJGL native archive extraction");
     }
     await using (var fixture = new UpdateFixture())
     {

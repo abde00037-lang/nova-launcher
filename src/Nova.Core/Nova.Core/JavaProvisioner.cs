@@ -107,30 +107,19 @@ public static class JavaProvisioner
 
 	private static void Extract(string archive, string target)
 	{
-		string text = target + ".tmp";
-		if (Directory.Exists(text))
-		{
-			Directory.Delete(text, recursive: true);
-		}
-		Directory.CreateDirectory(text);
-		ZipFile.ExtractToDirectory(archive, text, overwriteFiles: true);
-		string[] directories = Directory.GetDirectories(text);
-		string path = ((directories.Length == 1 && Directory.GetFiles(text).Length == 0) ? directories[0] : text);
-		Directory.CreateDirectory(target);
-		foreach (string item in Directory.EnumerateFiles(path))
-		{
-			File.Move(item, Path.Combine(target, Path.GetFileName(item)));
-		}
-		foreach (string item2 in Directory.EnumerateDirectories(path))
-		{
-			Directory.Move(item2, Path.Combine(target, Path.GetFileName(item2)));
-		}
+		string temp = target + ".nova-stage-" + Guid.NewGuid().ToString("N");
 		try
 		{
-			Directory.Delete(text, recursive: true);
+			using ZipArchive zip = ZipFile.OpenRead(archive);
+			var limits = ArchiveLimits.Default;
+			SafeArchive.Extract(zip, temp, "", limits, new ArchiveBudget(limits));
+			string[] directories = Directory.GetDirectories(temp);
+			string source = (directories.Length == 1 && Directory.GetFiles(temp).Length == 0) ? directories[0] : temp;
+			SafePath.RejectLinks(target, target);
+			Directory.CreateDirectory(target);
+			foreach (string file in Directory.EnumerateFiles(source)) File.Move(file, SafePath.ResolveWithin(target, Path.GetFileName(file)));
+			foreach (string dir in Directory.EnumerateDirectories(source)) Directory.Move(dir, SafePath.ResolveWithin(target, Path.GetFileName(dir)));
 		}
-		catch
-		{
-		}
+		finally { if (Directory.Exists(temp)) Directory.Delete(temp, true); }
 	}
 }

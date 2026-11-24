@@ -14,7 +14,7 @@ using Nova.Core;
 
 namespace Nova.App.ViewModels;
 
-public sealed class MainViewModel : ObservableObject
+public sealed partial class MainViewModel : ObservableObject
 {
 	private const int MaxConsoleLines = 250;
 
@@ -3601,10 +3601,10 @@ public sealed class MainViewModel : ObservableObject
 		_tailer = new LogTailer();
 		_tailer.Follow(latestLog, (string line) =>
 		{
-			if (ShouldShow(line))
+			if (GameLogFormatter.ShouldShow(line))
 			{
-				string level = LevelOf(line);
-				string text = CleanLine(line);
+				string level = GameLogFormatter.LevelOf(line);
+				string text = GameLogFormatter.CleanLine(line);
 				RunOnUi(() =>
 				{
 					AppendConsole(level, text);
@@ -3618,7 +3618,7 @@ public sealed class MainViewModel : ObservableObject
 					{
 						StatusText = "Mods loaded";
 						StatusProgress = 0.8;
-						StatusDetail = CleanLine(line);
+						StatusDetail = GameLogFormatter.CleanLine(line);
 					}
 					else if (line.Contains("Sound engine started", StringComparison.OrdinalIgnoreCase))
 					{
@@ -4131,173 +4131,6 @@ public sealed class MainViewModel : ObservableObject
 		catch (Exception ex)
 		{
 			Log("open folder failed: " + ex.Message);
-		}
-	}
-
-	private static bool ShouldShow(string line)
-	{
-		if (line.Contains("Missing sound for event", StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-		if (line.Contains("Potentially Dangerous alternative prefix", StringComparison.OrdinalIgnoreCase))
-		{
-			return false;
-		}
-		if (line.StartsWith("\tat ") || line.StartsWith("Caused by"))
-		{
-			return false;
-		}
-		if (line.Contains("/ERROR]") || line.Contains("/FATAL]") || line.Contains("/WARN]"))
-		{
-			return true;
-		}
-		if (!line.Contains("Mod Loader has", StringComparison.OrdinalIgnoreCase) && !line.Contains("OpenAL initialized", StringComparison.OrdinalIgnoreCase) && !line.Contains("Sound engine started", StringComparison.OrdinalIgnoreCase) && !line.Contains("Setting user", StringComparison.OrdinalIgnoreCase) && !line.Contains("Stopping!", StringComparison.OrdinalIgnoreCase))
-		{
-			return line.Contains("Forge Mod Loader version", StringComparison.OrdinalIgnoreCase);
-		}
-		return true;
-	}
-
-	private static string LevelOf(string line)
-	{
-		if (line.Contains("/FATAL]"))
-		{
-			return "FATAL";
-		}
-		if (line.Contains("/ERROR]"))
-		{
-			return "ERROR";
-		}
-		if (line.Contains("/WARN]"))
-		{
-			return "WARN";
-		}
-		return "INFO";
-	}
-
-	private static string CleanLine(string line)
-	{
-		string text = line.Trim();
-		int num = text.IndexOf("]: ", StringComparison.Ordinal);
-		if (num > 0 && num < 90)
-		{
-			string text2 = text;
-			int num2 = num + 3;
-			text = text2.Substring(num2, text2.Length - num2);
-		}
-		if (text.Length <= 180)
-		{
-			return text;
-		}
-		return text.Substring(0, 180) + "…";
-	}
-
-	public async Task CheckLauncherUpdateAsync(bool manual)
-	{
-		if (IsLauncherUpdateBusy)
-		{
-			return;
-		}
-		IsLauncherUpdateBusy = true;
-		if (manual)
-		{
-			LauncherUpdateStatus = "Checking GitHub Releases (" + UpdateRepoSlug + ")…";
-		}
-		try
-		{
-			string repo = UpdateRepoSlug;
-			LauncherUpdateInfo? info = await Task.Run(() => LauncherUpdater.CheckForUpdateAsync(repo, includeSameOrOlder: false).GetAwaiter().GetResult());
-			_pendingLauncherUpdate = info;
-			Raise("HasLauncherUpdate");
-			Raise("LauncherUpdateTitle");
-			Raise("LauncherUpdateDetail");
-			Raise("CanApplyLauncherUpdate");
-			Raise("LauncherUpdateActionLabel");
-			(ApplyLauncherUpdateCommand as RelayCommand)?.Refresh();
-
-			if (info != null)
-			{
-				LauncherUpdateStatus = $"Update v{info.LatestVersion} ready ({info.Title}) — worlds & mods stay intact.";
-				LauncherUpdateBannerVisible = true;
-				AppendConsole("OK", $"updater: new release v{info.LatestVersion} available on {repo}");
-			}
-			else if (manual)
-			{
-				LauncherUpdateStatus = $"Up to date · running latest v{LauncherUpdater.CurrentVersion} ({repo})";
-				AppendConsole("OK", $"updater: v{LauncherUpdater.CurrentVersion} is already the latest release");
-			}
-		}
-		catch (Exception ex)
-		{
-			if (manual)
-			{
-				LauncherUpdateStatus = "Update check failed: " + ex.Message;
-				AppendConsole("WARN", "updater check failed: " + ex.Message);
-			}
-			Log("launcher update check failed: " + ex);
-		}
-		finally
-		{
-			IsLauncherUpdateBusy = false;
-			FlushConsole();
-		}
-	}
-
-	public async Task ApplyLauncherUpdateAsync()
-	{
-		if (_pendingLauncherUpdate == null || IsLauncherUpdateBusy)
-		{
-			return;
-		}
-		if (IsRunning)
-		{
-			LauncherUpdateStatus = "Close the running Minecraft session before updating Nova.";
-			return;
-		}
-		IsLauncherUpdateBusy = true;
-		LauncherUpdateInfo update = _pendingLauncherUpdate;
-		LauncherUpdateStatus = $"Downloading Nova v{update.LatestVersion}…";
-		AppendConsole("INFO", $"updater: downloading Nova v{update.LatestVersion} ({update.AssetName})");
-		FlushConsole();
-		try
-		{
-			IProgress<string> prog = new Progress<string>((string line) =>
-			{
-				RunOnUi(() => LauncherUpdateStatus = line);
-				AppendConsole("INFO", "updater: " + line);
-			});
-			string stagedDir = await Task.Run(() => LauncherUpdater.StageUpdateAsync(Paths, update, prog).GetAwaiter().GetResult());
-			string targetBin = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-			string uiLog = Path.Combine(Paths.Root, "logs", "nova-ui.log");
-			int currentPid = Environment.ProcessId;
-
-			Log($"updater staged v{update.LatestVersion}; spawning swapper into {targetBin} (pid={currentPid})");
-			LauncherUpdater.LaunchDetachedSwapper(stagedDir, targetBin, currentPid, relaunchGui: true, uiLog);
-			Application.Current?.Shutdown();
-		}
-		catch (Exception ex)
-		{
-			LauncherUpdateStatus = "Update failed: " + ex.Message;
-			AppendConsole("ERROR", "updater failed: " + ex.Message);
-			Log("launcher update apply failed: " + ex);
-			IsLauncherUpdateBusy = false;
-			FlushConsole();
-		}
-	}
-
-	private void OpenLauncherReleaseUrl()
-	{
-		string url = _pendingLauncherUpdate?.HtmlUrl ?? ("https://github.com/" + UpdateRepoSlug + "/releases");
-		try
-		{
-			Process.Start(new ProcessStartInfo(url)
-			{
-				UseShellExecute = true
-			});
-		}
-		catch
-		{
 		}
 	}
 

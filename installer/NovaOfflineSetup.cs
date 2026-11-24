@@ -10,10 +10,10 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Nova Workbench Full Offline Setup")]
-[assembly: AssemblyDescription("Full offline installer for Nova Workbench v2.1.0 (includes embedded .NET 8 runtime)")]
+[assembly: AssemblyDescription("Full offline installer for Nova Workbench v2.1.3 (includes embedded .NET 8 runtime)")]
 [assembly: AssemblyProduct("Nova Workbench")]
-[assembly: AssemblyVersion("2.1.0.0")]
-[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyVersion("2.1.3.0")]
+[assembly: AssemblyFileVersion("2.1.3.0")]
 
 namespace NovaOfflineSetup
 {
@@ -66,7 +66,7 @@ namespace NovaOfflineSetup
     internal static class OfflineInstaller
     {
         public const string ResourceName = "NovaFullPayload.zip";
-        public const string EmbeddedVersion = "v2.1.0";
+        public const string EmbeddedVersion = "v2.1.3";
 
         public static Task<string> ExtractEmbeddedPayloadAsync(
             string targetRoot,
@@ -86,60 +86,37 @@ namespace NovaOfflineSetup
 
                 StopNovaInDirectory(targetBin);
 
-                Assembly asm = Assembly.GetExecutingAssembly();
-                using (Stream payloadStream = asm.GetManifestResourceStream(ResourceName))
+                string stage = Path.Combine(Path.GetTempPath(), "nova-full-stage-" + Guid.NewGuid().ToString("N"));
+                try
                 {
-                    if (payloadStream == null)
+                    Assembly asm = Assembly.GetExecutingAssembly();
+                    using (Stream payloadStream = asm.GetManifestResourceStream(ResourceName))
                     {
-                        throw new InvalidOperationException("Embedded payload '" + ResourceName + "' not found inside installer.");
-                    }
-
-                    using (ZipArchive archive = new ZipArchive(payloadStream, ZipArchiveMode.Read))
-                    {
-                        int total = Math.Max(1, archive.Entries.Count);
-                        int index = 0;
-                        int lastPct = -1;
-
-                        foreach (ZipArchiveEntry entry in archive.Entries)
+                        if (payloadStream == null) throw new InvalidOperationException("Embedded payload not found.");
+                        using (ZipArchive archive = new ZipArchive(payloadStream, ZipArchiveMode.Read))
                         {
-                            index++;
-                            if (string.IsNullOrEmpty(entry.Name))
+                            progress(10, "Validating and extracting package…");
+                            SafeInstallerZip.Extract(archive, stage, delegate(string raw)
                             {
-                                continue;
-                            }
-
-                            // Normalize path: strip leading "Nova/" if archive came from Nova-Portable-Full, otherwise place bin files inside bin\
-                            string rel = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
-                            if (rel.StartsWith("Nova" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                            {
-                                rel = rel.Substring(5);
-                            }
-                            else if (!rel.StartsWith("bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
-                                     !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
-                            {
-                                rel = Path.Combine("bin", rel);
-                            }
-
-                            string destPath = Path.Combine(targetRoot, rel);
-                            string destDir = Path.GetDirectoryName(destPath);
-                            if (!string.IsNullOrEmpty(destDir))
-                            {
-                                Directory.CreateDirectory(destDir);
-                            }
-
-                            entry.ExtractToFile(destPath, true);
-
-                            int pct = 6 + (index * 86 / total);
-                            if (pct != lastPct)
-                            {
-                                lastPct = pct;
-                                progress(pct, string.Format("Extracting files ({0} / {1}): {2}", index, total, entry.Name));
-                            }
+                                string rel = raw.Replace('\\', '/');
+                                if (rel.StartsWith("Nova/", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    rel = rel.Substring(5);
+                                    if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
+                                        throw new InvalidDataException("Unexpected file in portable payload: " + raw);
+                                }
+                                else if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
+                                    rel = "bin/" + rel;
+                                return rel;
+                            });
                         }
                     }
+                    progress(90, "Installing verified package files…");
+                    SafeInstallerZip.CopyFiles(stage, targetRoot);
                 }
+                finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
 
-                string batPath = Path.Combine(targetRoot, "Start Nova.bat");
+                string batPath = SafeInstallerZip.PathWithin(targetRoot, "Start Nova.bat");
                 File.WriteAllText(batPath, "@echo off\r\nstart \"\" \"%~dp0bin\\Nova.exe\"\r\n", Encoding.ASCII);
 
                 string novaExe = Path.Combine(targetBin, "Nova.exe");

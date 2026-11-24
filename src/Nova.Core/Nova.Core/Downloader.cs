@@ -1,9 +1,9 @@
 using System;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,7 +15,14 @@ public sealed class Downloader : IDisposable
 
 	private readonly SemaphoreSlim _gate;
 
-	private readonly ConcurrentDictionary<string, string?> _hashCache = new ConcurrentDictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+	// Bounded striped locks coordinate separate Downloader instances without leaking one semaphore per path.
+	private static readonly SemaphoreSlim[] PathLocks = CreatePathLocks();
+	private static SemaphoreSlim[] CreatePathLocks()
+	{
+		var locks = new SemaphoreSlim[1024];
+		for (int i = 0; i < locks.Length; i++) locks[i] = new SemaphoreSlim(1, 1);
+		return locks;
+	}
 
 	public string? LastError { get; private set; }
 
@@ -47,34 +54,25 @@ public sealed class Downloader : IDisposable
 		_http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/1.0");
 	}
 
-	public async Task<FetchResult> EnsureAsync(string targetPath, string? url, string? sha1, CancellationToken ct = default(CancellationToken), Action<long, long>? byteProgress = null)
+	public async Task<FetchResult> EnsureAsync(string targetPath, string? url, string? sha1, CancellationToken ct = default(CancellationToken), Action<long, long>? byteProgress = null, long? maxBytes = null)
 	{
-		if (File.Exists(targetPath))
+		targetPath = Path.GetFullPath(targetPath);
+		string lockKey = OperatingSystem.IsWindows() ? targetPath.ToUpperInvariant() : targetPath;
+		SemaphoreSlim pathLock = PathLocks[(int)((uint)StringComparer.Ordinal.GetHashCode(lockKey) % (uint)PathLocks.Length)];
+		await pathLock.WaitAsync(ct).ConfigureAwait(false);
+		try
 		{
-			if (string.IsNullOrEmpty(sha1))
+			// A bounded, stable set of lock files also coordinates the GUI and CLI in separate processes.
+			using FileStream processLock = await AcquireProcessLockAsync(lockKey, ct).ConfigureAwait(false);
+			// Recheck under the per-path lock; another caller may have completed while we waited.
+			if (File.Exists(targetPath))
 			{
-				if (new FileInfo(targetPath).Length > 0)
-				{
-					Interlocked.Increment(ref FilesSkipped);
-					return FetchResult.AlreadyValid;
-				}
+				bool valid = string.IsNullOrEmpty(sha1)
+					? new FileInfo(targetPath).Length > 0 && (!maxBytes.HasValue || new FileInfo(targetPath).Length <= maxBytes.Value)
+					: string.Equals(await Sha1Async(targetPath, ct).ConfigureAwait(false), sha1, StringComparison.OrdinalIgnoreCase) && (!maxBytes.HasValue || new FileInfo(targetPath).Length <= maxBytes.Value);
+				if (valid) { Interlocked.Increment(ref FilesSkipped); return FetchResult.AlreadyValid; }
 			}
-			else
-			{
-				string? text = await Sha1Async(targetPath, ct).ConfigureAwait(continueOnCapturedContext: false);
-				_hashCache[targetPath] = text;
-				if (string.Equals(text, sha1, StringComparison.OrdinalIgnoreCase))
-				{
-					Interlocked.Increment(ref FilesSkipped);
-					return FetchResult.AlreadyValid;
-				}
-			}
-		}
-		if (string.IsNullOrEmpty(url))
-		{
-			Interlocked.Increment(ref FilesFailed);
-			return FetchResult.Failed;
-		}
+			if (string.IsNullOrEmpty(url)) { Interlocked.Increment(ref FilesFailed); return FetchResult.Failed; }
 		await _gate.WaitAsync(ct).ConfigureAwait(continueOnCapturedContext: false);
 		try
 		{
@@ -103,9 +101,10 @@ public sealed class Downloader : IDisposable
 							{
 								break;
 							}
+							currentFileBytes += read;
+							if (maxBytes.HasValue && currentFileBytes > maxBytes.Value) throw new DownloadLimitException("Download exceeded its permitted size.");
 							await dst.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(continueOnCapturedContext: false);
 							long totalSoFar = Interlocked.Add(ref BytesDownloaded, read);
-							currentFileBytes += read;
 							byteProgress?.Invoke(currentFileBytes, totalLength);
 							OnBytesRead?.Invoke(totalSoFar);
 						}
@@ -116,10 +115,10 @@ public sealed class Downloader : IDisposable
 						return FetchResult.HashMismatch;
 					}
 					File.Move(tmp, targetPath, overwrite: true);
-					_hashCache[targetPath] = sha1;
 					Interlocked.Increment(ref FilesDownloaded);
 					return FetchResult.Downloaded;
 				}
+				catch (DownloadLimitException) { TryDelete(tmp); throw; }
 				catch (OperationCanceledException)
 				{
 					TryDelete(tmp);
@@ -146,25 +145,39 @@ public sealed class Downloader : IDisposable
 		{
 			_gate.Release();
 		}
+		}
+		finally { pathLock.Release(); }
+	}
+
+	private static async Task<FileStream> AcquireProcessLockAsync(string key, CancellationToken ct)
+	{
+		byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+		int stripe = ((hash[0] << 8) | hash[1]) % 1024;
+		string directory = Path.Combine(Path.GetTempPath(), "nova-download-locks");
+		Directory.CreateDirectory(directory);
+		string name = Path.Combine(directory, stripe.ToString("D4") + ".lock");
+		while (true)
+		{
+			ct.ThrowIfCancellationRequested();
+			try { return new FileStream(name, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+			catch (IOException ex) when (OperatingSystem.IsWindows() ? ((ex.HResult & 0xffff) == 32 || (ex.HResult & 0xffff) == 33) : (ex.HResult & 0xffff) == 11)
+			{ await Task.Delay(100, ct).ConfigureAwait(false); }
+		}
 	}
 
 	public async Task<string?> Sha1Async(string path, CancellationToken ct = default(CancellationToken))
 	{
-		if (_hashCache.TryGetValue(path, out string? value) && !string.IsNullOrEmpty(value))
-		{
-			return value;
-		}
 		try
 		{
 			string result;
 			await using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true))
 			{
 				string text = Convert.ToHexString(await SHA1.HashDataAsync(stream, ct).ConfigureAwait(continueOnCapturedContext: false)).ToLowerInvariant();
-				_hashCache[path] = text;
 				result = text;
 			}
 			return result;
 		}
+		catch (OperationCanceledException) { throw; }
 		catch
 		{
 			return null;
@@ -190,4 +203,10 @@ public sealed class Downloader : IDisposable
 		_http.Dispose();
 		_gate.Dispose();
 	}
+}
+
+/// <summary>Raised when a transfer exceeds its explicitly configured byte limit.</summary>
+public sealed class DownloadLimitException : IOException
+{
+    public DownloadLimitException(string message) : base(message) { }
 }

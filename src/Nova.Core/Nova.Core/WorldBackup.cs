@@ -194,16 +194,25 @@ public static class WorldBackup
 		}
 	}
 
-	public static string Restore(LauncherPaths paths, InstanceConfig instance, BackupInfo backup, string? targetName = null, bool replace = false, IProgress<string>? log = null)
+	public static string Restore(LauncherPaths paths, InstanceConfig instance, BackupInfo backup, string? targetName = null, bool replace = false, IProgress<string>? log = null, ArchiveLimits? limits = null)
 	{
 		string text = Path.Combine(instance.GameDirectory, "saves");
 		Directory.CreateDirectory(text);
 		string text2 = targetName ?? (backup.WorldName + " (restored " + DateTime.Now.ToString("yyyy-MM-dd HHmm") + ")");
-		string text3 = Path.Combine(text, text2);
+		string text3 = SafePath.ResolveWithin(text, text2);
 		string text4 = Path.Combine(paths.Root, "cache", "restore-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-		Directory.CreateDirectory(text4);
 		log?.Report("extracting to a temporary folder ...");
-		ZipFile.ExtractToDirectory(backup.FilePath, text4);
+		try
+		{
+			using ZipArchive archive = ZipFile.OpenRead(backup.FilePath);
+			limits ??= ArchiveLimits.Default;
+			SafeArchive.Extract(archive, text4, "", limits, new ArchiveBudget(limits));
+		}
+		catch
+		{
+			if (Directory.Exists(text4)) Directory.Delete(text4, true);
+			throw;
+		}
 		File.Delete(Path.Combine(text4, "nova-backup.json"));
 		if (Directory.Exists(text3))
 		{

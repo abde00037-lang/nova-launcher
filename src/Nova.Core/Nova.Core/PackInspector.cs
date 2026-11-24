@@ -16,7 +16,7 @@ public static class PackInspector
 
 	public const string CurseEntry = "manifest.json";
 
-	public static PackInfo Inspect(string zipPath)
+	public static PackInfo Inspect(string zipPath, ArchiveLimits? limits = null)
 	{
 		PackInfo packInfo = new PackInfo
 		{
@@ -29,10 +29,11 @@ public static class PackInspector
 			return packInfo;
 		}
 		using ZipArchive zipArchive = ZipFile.OpenRead(zipPath);
+		(limits ?? ArchiveLimits.Default).ValidateArchive(zipArchive);
 		ZipArchiveEntry entry = zipArchive.GetEntry("nova-pack.json");
 		if (entry != null)
 		{
-			NovaPackManifest novaPackManifest = ReadJson<NovaPackManifest>(entry) ?? new NovaPackManifest();
+			NovaPackManifest novaPackManifest = ReadJson<NovaPackManifest>(entry, (limits ?? ArchiveLimits.Default).MaxManifestBytes) ?? new NovaPackManifest();
 			packInfo.Format = PackFormat.NovaPack;
 			packInfo.Name = (string.IsNullOrWhiteSpace(novaPackManifest.Name) ? packInfo.Name : novaPackManifest.Name);
 			packInfo.VersionId = novaPackManifest.VersionId ?? "";
@@ -49,7 +50,7 @@ public static class PackInspector
 		ZipArchiveEntry entry2 = zipArchive.GetEntry("modrinth.index.json");
 		if (entry2 != null)
 		{
-			ModrinthIndex modrinthIndex = ReadJson<ModrinthIndex>(entry2) ?? new ModrinthIndex();
+			ModrinthIndex modrinthIndex = ReadJson<ModrinthIndex>(entry2, (limits ?? ArchiveLimits.Default).MaxManifestBytes) ?? new ModrinthIndex();
 			packInfo.Format = PackFormat.Modrinth;
 			packInfo.Name = (string.IsNullOrWhiteSpace(modrinthIndex.Name) ? packInfo.Name : modrinthIndex.Name);
 			packInfo.VersionId = modrinthIndex.VersionId ?? "";
@@ -73,7 +74,7 @@ public static class PackInspector
 		ZipArchiveEntry entry3 = zipArchive.GetEntry("manifest.json");
 		if (entry3 != null)
 		{
-			CurseManifest curseManifest = ReadJson<CurseManifest>(entry3) ?? new CurseManifest();
+			CurseManifest curseManifest = ReadJson<CurseManifest>(entry3, (limits ?? ArchiveLimits.Default).MaxManifestBytes) ?? new CurseManifest();
 			packInfo.Format = PackFormat.CurseForge;
 			packInfo.Name = (string.IsNullOrWhiteSpace(curseManifest.Name) ? packInfo.Name : curseManifest.Name);
 			packInfo.McVersion = curseManifest.Minecraft?.Version ?? "";
@@ -170,19 +171,20 @@ public static class PackInspector
 		return Enumerable.Count(zip.Entries, (ZipArchiveEntry e) => e.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && !e.FullName.EndsWith('/'));
 	}
 
-	internal static T? ReadJson<T>(ZipArchiveEntry entry) where T : class
+	internal static T? ReadJson<T>(ZipArchiveEntry entry, long maxBytes = 32L * 1024 * 1024) where T : class
 	{
-		try
+		if (entry.Length > maxBytes) throw new InvalidDataException("Pack manifest exceeds its size limit.");
+		using Stream input = entry.Open();
+		using MemoryStream bounded = new MemoryStream();
+		byte[] buffer = new byte[81920];
+		int n;
+		while ((n = input.Read(buffer, 0, buffer.Length)) > 0)
 		{
-			using Stream utf8Json = entry.Open();
-			return JsonSerializer.Deserialize<T>(utf8Json, new JsonSerializerOptions
-			{
-				PropertyNameCaseInsensitive = true
-			});
+			if (n > maxBytes - bounded.Length) throw new InvalidDataException("Pack manifest exceeds its size limit.");
+			bounded.Write(buffer, 0, n);
 		}
-		catch
-		{
-			return null;
-		}
+		bounded.Position = 0;
+		try { return JsonSerializer.Deserialize<T>(bounded, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+		catch (JsonException) { return null; }
 	}
 }

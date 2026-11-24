@@ -208,7 +208,17 @@ public static class LauncherUpdater
 				throw new InvalidDataException("Update SHA-256 mismatch; no files were installed.");
 			}
 		}
-		ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
+		try
+		{
+			using ZipArchive archive = ZipFile.OpenRead(zipPath);
+			var limits = ArchiveLimits.Default;
+			SafeArchive.Extract(archive, extractDir, "", limits, new ArchiveBudget(limits), ct: ct);
+		}
+		catch
+		{
+			if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
+			throw;
+		}
 
 		// Support archives where files are either directly at root or inside a bin\ subfolder
 		string binCandidate = Path.Combine(extractDir, "bin");

@@ -23,13 +23,17 @@ public static class PackImporter
 		Http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/0.2 (minecraft modpack launcher)");
 	}
 
-	public static async Task<PackImportResult> ImportAsync(string zipPath, LauncherPaths paths, string? instanceId = null, string? displayName = null, IProgress<string>? log = null, CancellationToken ct = default(CancellationToken), string? curseForgeKey = null)
+	public static async Task<PackImportResult> ImportAsync(string zipPath, LauncherPaths paths, string? instanceId = null, string? displayName = null, IProgress<string>? log = null, CancellationToken ct = default(CancellationToken), string? curseForgeKey = null, ArchiveLimits? limits = null)
 	{
-		PackInfo info = PackInspector.Inspect(zipPath);
+		limits ??= ArchiveLimits.Default;
+		PackInfo info = PackInspector.Inspect(zipPath, limits);
 		if (info.Format == PackFormat.Unknown)
 		{
 			throw new InvalidOperationException("cannot import " + Path.GetFileName(zipPath) + ": " + string.Join("; ", info.Notes));
 		}
+		ValidateMetadataToken(info.McVersion, "Minecraft version");
+		ValidateMetadataToken(info.LoaderVersion, "loader version");
+		ValidateMetadataToken(info.VersionId, "version ID");
 		string? effectiveKey = curseForgeKey;
 		if (string.IsNullOrWhiteSpace(effectiveKey))
 		{
@@ -39,36 +43,45 @@ public static class PackImporter
 		InstanceStore store = new InstanceStore(paths);
 		int suffix = 2;
 		string baseId = id;
-		while (store.Find(id) != null)
+		while (store.Find(id) != null || Directory.Exists(store.FolderFor(id)) || File.Exists(store.FolderFor(id)))
 		{
 			id = baseId + "-" + suffix++;
 		}
 		string name = (string.IsNullOrWhiteSpace(displayName) ? (string.IsNullOrWhiteSpace(info.Name) ? id : info.Name) : displayName);
-		string text = Path.Combine(paths.Instances, id);
-		string gameDir = Path.Combine(text, "game");
-		Directory.CreateDirectory(gameDir);
+		string text = store.FolderFor(id);
+		string staging = Path.Combine(paths.Instances, ".nova-import-" + Guid.NewGuid().ToString("N"));
+		string gameDir = Path.Combine(staging, "game");
+		string finalGameDir = Path.Combine(text, "game");
+		bool published = false;
+		SafePath.RejectLinks(paths.Instances, text);
+		SafePath.RejectLinks(paths.Instances, staging);
+		try
+		{
 		PackImportResult result = new PackImportResult
 		{
 			InstanceId = id,
 			Name = name,
-			GameDirectory = gameDir
+			GameDirectory = finalGameDir
 		};
 		log?.Report("importing " + info.FormatName + ": " + name);
 		using (ZipArchive zip = ZipFile.OpenRead(zipPath))
 		{
+			limits.ValidateArchive(zip);
+			var budget = new ArchiveBudget(limits);
 			switch (info.Format)
 			{
 			case PackFormat.Modrinth:
-				await ImportModrinthAsync(zip, gameDir, result, log, ct).ConfigureAwait(continueOnCapturedContext: false);
+				await ImportModrinthAsync(zip, gameDir, result, log, ct, limits, budget).ConfigureAwait(continueOnCapturedContext: false);
 				break;
 			case PackFormat.CurseForge:
-				await ImportCurseForgeAsync(zip, text, gameDir, effectiveKey, result, log, ct).ConfigureAwait(continueOnCapturedContext: false);
+				await ImportCurseForgeAsync(zip, staging, gameDir, effectiveKey, result, log, ct, limits, budget).ConfigureAwait(continueOnCapturedContext: false);
 				break;
 			default:
-				ExtractFolder(zip, gameDir, "", result, new string[1] { "nova-pack.json" });
+				ExtractFolder(zip, gameDir, "", result, limits, budget, ct, new string[1] { "nova-pack.json" });
 				break;
 			}
 		}
+		Directory.CreateDirectory(gameDir);
 		string resolvedVersionId = await EnsurePackLoaderAsync(info, paths, log, ct).ConfigureAwait(continueOnCapturedContext: false);
 		string modsDir = Path.Combine(gameDir, "mods");
 		int num = ModManager.CountInstalled(modsDir);
@@ -91,18 +104,30 @@ public static class PackImporter
 		{
 			Id = id,
 			Name = name,
-			GameDirectory = gameDir,
+			GameDirectory = finalGameDir,
 			VersionId = resolvedVersionId,
 			JavaPath = java?.Path,
 			MemoryMb = LaunchBuilder.RecommendMemoryMb(num),
 			PlayerName = (string.IsNullOrWhiteSpace(activePlayer) ? "Player" : activePlayer),
 			CreatedUtc = DateTime.UtcNow
 		};
+		ct.ThrowIfCancellationRequested();
+		SafePath.RejectLinks(paths.Instances, text);
+		Directory.Move(staging, text);
+		published = true;
 		store.Save(instanceConfig);
 		result.VersionId = instanceConfig.VersionId;
 		result.Notes.Add($"instance '{id}' created with {num} mod(s), {instanceConfig.MemoryMb} MB heap");
 		log?.Report(result.Summary);
 		return result;
+		}
+		catch
+		{
+			// Only remove the unique directory created by this import, never an existing instance.
+			if (Directory.Exists(staging)) Directory.Delete(staging, true);
+			if (published && Directory.Exists(text)) Directory.Delete(text, true);
+			throw;
+		}
 	}
 
 	private static async Task<string> EnsurePackLoaderAsync(PackInfo info, LauncherPaths paths, IProgress<string>? log, CancellationToken ct)
@@ -136,10 +161,26 @@ public static class PackImporter
 		return built;
 	}
 
-	private static async Task ImportModrinthAsync(ZipArchive zip, string gameDir, PackImportResult result, IProgress<string>? log, CancellationToken ct)
+	private static async Task ImportModrinthAsync(ZipArchive zip, string gameDir, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget)
 	{
-		ModrinthIndex modrinthIndex = PackInspector.ReadJson<ModrinthIndex>(zip.GetEntry("modrinth.index.json")!) ?? new ModrinthIndex();
+		ModrinthIndex modrinthIndex = PackInspector.ReadJson<ModrinthIndex>(zip.GetEntry("modrinth.index.json")!, limits.MaxManifestBytes) ?? new ModrinthIndex();
 		List<ModrinthFile> files = (modrinthIndex.Files ?? new List<ModrinthFile>()).Where((ModrinthFile f) => f.IsClientFile).ToList();
+		// Validate every manifest and override path and all declared sizes before downloading.
+		SafeArchive.Validate(zip, gameDir, "overrides/", limits);
+		SafeArchive.Validate(zip, gameDir, "client-overrides/", limits);
+		if ((long)files.Count + zip.Entries.Count > limits.MaxEntries) throw new InvalidDataException("Pack has too many files.");
+		long declared = zip.Entries.Sum(e => e.Length);
+		var destinations = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+		foreach (ModrinthFile file in files)
+		{
+			string destination = SafePath.ResolveWithin(gameDir, file.Path);
+			if (!destinations.Add(destination)) throw new InvalidDataException("Duplicate Modrinth destination.");
+			if (file.FileSize < 0 || file.FileSize > limits.MaxFileBytes || file.FileSize > limits.MaxTotalBytes - declared)
+				throw new InvalidDataException("Modrinth pack exceeds size limits.");
+			declared += file.FileSize;
+			budget.BeginFile();
+			budget.AddBytes(file.FileSize, file.FileSize);
+		}
 		log?.Report($"{files.Count} file(s) listed by the pack");
 		using Downloader downloader = new Downloader(8);
 		int done = 0;
@@ -147,10 +188,8 @@ public static class PackImporter
 		IEnumerable<Task> tasks = files.Select(async delegate(ModrinthFile file)
 		{
 			ct.ThrowIfCancellationRequested();
-			string rel = file.Path.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-			string target = Path.Combine(gameDir, rel);
-			Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-			FetchResult fetchResult = await downloader.EnsureAsync(target, file.Url, file.Sha1, ct).ConfigureAwait(continueOnCapturedContext: false);
+			string target = SafePath.ResolveWithin(gameDir, file.Path);
+			FetchResult fetchResult = await downloader.EnsureAsync(target, file.Url, file.Sha1, ct, maxBytes: file.FileSize).ConfigureAwait(continueOnCapturedContext: false);
 			int current = Interlocked.Increment(ref done);
 			lock (sync)
 			{
@@ -174,18 +213,18 @@ public static class PackImporter
 			}
 		});
 		await Task.WhenAll(tasks).ConfigureAwait(continueOnCapturedContext: false);
-		ExtractFolder(zip, gameDir, "overrides/", result);
-		ExtractFolder(zip, gameDir, "client-overrides/", result);
+		ExtractFolder(zip, gameDir, "overrides/", result, limits, budget, ct);
+		ExtractFolder(zip, gameDir, "client-overrides/", result, limits, budget, ct);
 		if (result.Missing.Count > 0)
 		{
 			log?.Report($"{result.Missing.Count} file(s) could not be downloaded: " + string.Join(", ", result.Missing.Take(5)));
 		}
 	}
 
-	private static async Task ImportCurseForgeAsync(ZipArchive zip, string instanceFolder, string gameDir, string? curseKey, PackImportResult result, IProgress<string>? log, CancellationToken ct)
+	private static async Task ImportCurseForgeAsync(ZipArchive zip, string instanceFolder, string gameDir, string? curseKey, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget)
 	{
-		CurseManifest? manifest = PackInspector.ReadJson<CurseManifest>(zip.GetEntry("manifest.json")!);
-		ExtractFolder(zip, gameDir, "overrides/", result);
+		CurseManifest? manifest = PackInspector.ReadJson<CurseManifest>(zip.GetEntry("manifest.json")!, limits.MaxManifestBytes);
+		ExtractFolder(zip, gameDir, "overrides/", result, limits, budget, ct);
 		List<CurseFile> required = manifest?.Files?.Where((CurseFile f) => f.Required && f.ProjectId > 0 && f.FileId > 0).ToList() ?? new List<CurseFile>();
 		if (required.Count == 0)
 		{
@@ -307,7 +346,8 @@ public static class PackImporter
 				}
 				return;
 			}
-			string dest = Path.Combine(modsDir, info2.FileName);
+			if (info2.FileName.Contains('/') || info2.FileName.Contains('\\')) throw new InvalidDataException("Invalid CurseForge filename.");
+			string dest = SafePath.ResolveWithin(modsDir, info2.FileName);
 			FetchResult fr = await downloader.EnsureAsync(dest, info2.Url, info2.Sha1, ct).ConfigureAwait(continueOnCapturedContext: false);
 			int curr = Interlocked.Increment(ref done);
 			lock (resLock)
@@ -345,37 +385,17 @@ public static class PackImporter
 		}
 	}
 
-	private static void ExtractFolder(ZipArchive zip, string gameDir, string prefix, PackImportResult result, string[]? skip = null)
+	private static void ExtractFolder(ZipArchive zip, string gameDir, string prefix, PackImportResult result, ArchiveLimits limits, ArchiveBudget budget, CancellationToken ct, string[]? skip = null)
 	{
-		int num = 0;
-		foreach (ZipArchiveEntry entry in zip.Entries)
-		{
-			if (entry.FullName.EndsWith('/') || !entry.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || (skip != null && skip.Contains(entry.FullName, StringComparer.OrdinalIgnoreCase)))
-			{
-				continue;
-			}
-			string fullName = entry.FullName;
-			int length = prefix.Length;
-			string text = fullName.Substring(length, fullName.Length - length).Replace('/', Path.DirectorySeparatorChar);
-			if (!string.IsNullOrWhiteSpace(text) && !text.Contains(".."))
-			{
-				string text2 = Path.Combine(gameDir, text);
-				Directory.CreateDirectory(Path.GetDirectoryName(text2)!);
-				try
-				{
-					entry.ExtractToFile(text2, overwrite: true);
-					num++;
-				}
-				catch (Exception)
-				{
-					result.FilesFailed++;
-				}
-			}
-		}
-		if (num > 0)
-		{
-			result.FilesWritten += num;
-		}
+		result.FilesWritten += SafeArchive.Extract(zip, gameDir, prefix, limits, budget, skip, ct);
+	}
+
+	private static void ValidateMetadataToken(string? value, string label)
+	{
+		if (string.IsNullOrEmpty(value)) return;
+		if (value.Length > 128 || value == "." || value == ".." ||
+		    !value.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_' || c == '+'))
+			throw new InvalidDataException("Unsafe " + label + " in pack metadata.");
 	}
 
 	private static string BuildVersionId(PackInfo info)

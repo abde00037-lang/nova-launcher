@@ -2,6 +2,15 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.3] — 2026-11-24
+- Hardened archive extraction, modpack imports, resource limits, and download concurrency; see the source tests for coverage.
+- Split game-log formatting and updater responsibilities incrementally without changing the view-model bindings.
+- Centralized the project version in `Directory.Build.props`.
+
+## [v2.1.2] — 2026-11-24
+- Validated offline names and instance IDs, protected Microsoft tokens with Windows DPAPI, and enabled SHA-256 verification for subsequent updater downloads.
+- Removed the fixed Minecraft version-list ceiling and improved download diagnostics. See `docs/SECURITY-UPDATE-2.1.2.md` for limitations.
+
 ## [v2.1.1] — 2026-11-24
 ### Fixed
 - The OTA payload now contains a complete self-contained .NET/WPF publish instead of framework-dependent configs. This avoids the v2.1.0 runtime mismatch at the cost of a larger download.

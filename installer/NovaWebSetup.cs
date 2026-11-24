@@ -15,8 +15,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("Nova Workbench Web Installer")]
 [assembly: AssemblyDescription("Installs or updates Nova Workbench to the latest GitHub release")]
 [assembly: AssemblyProduct("Nova Workbench")]
-[assembly: AssemblyVersion("2.1.0.0")]
-[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyVersion("2.1.3.0")]
+[assembly: AssemblyFileVersion("2.1.3.0")]
 
 namespace NovaSetup
 {
@@ -215,14 +215,17 @@ namespace NovaSetup
                     using (FileStream fs = new FileStream(zipFile, FileMode.Create, FileAccess.Write, FileShare.None))
                     {
                         long total = resp.ContentLength > 0 ? resp.ContentLength : expectedBytes;
+                        long downloadLimit = SafeInstallerZip.DownloadLimit();
+                        if (total > downloadLimit) throw new InvalidDataException("Package download exceeds size limit.");
                         byte[] buf = new byte[65536];
                         long readTotal = 0;
                         int n;
                         int lastPct = -1;
                         while ((n = net.Read(buf, 0, buf.Length)) > 0)
                         {
-                            fs.Write(buf, 0, n);
                             readTotal += n;
+                            if (readTotal > downloadLimit) throw new InvalidDataException("Package download exceeds size limit.");
+                            fs.Write(buf, 0, n);
                             int pct = total > 0 ? (int)(8 + (readTotal * 74 / total)) : 50;
                             if (pct > 82) pct = 82;
                             if (pct != lastPct)
@@ -236,7 +239,10 @@ namespace NovaSetup
                     }
 
                     progress(85, "Extracting Nova Workbench files…");
-                    ZipFile.ExtractToDirectory(zipFile, extractDir);
+                    using (ZipArchive zip = ZipFile.OpenRead(zipFile))
+                    {
+                        SafeInstallerZip.Extract(zip, extractDir, delegate(string path) { return path; });
+                    }
 
                     // Locate Nova.Core.dll inside extracted tree
                     string[] foundCores = Directory.GetFiles(extractDir, "Nova.Core.dll", SearchOption.AllDirectories);
@@ -247,10 +253,10 @@ namespace NovaSetup
                     string extractedBin = Path.GetDirectoryName(foundCores[0]);
 
                     progress(93, "Installing into " + targetBin + " (preserving worlds & mods)…");
-                    CopyDirectoryContents(extractedBin, targetBin);
+                    SafeInstallerZip.CopyFiles(extractedBin, targetBin);
 
                     // Create Start Nova.bat helper at root
-                    string batPath = Path.Combine(targetRoot, "Start Nova.bat");
+                    string batPath = SafeInstallerZip.PathWithin(targetRoot, "Start Nova.bat");
                     File.WriteAllText(batPath, "@echo off\r\nstart \"\" \"%~dp0bin\\Nova.exe\"\r\n", Encoding.ASCII);
                 });
 

@@ -55,22 +55,22 @@ The portable package keeps the application and its data under a launcher directo
 
 ## Download & Installation
 
-> **Updating from v2.1.0:** v2.1.1 fixes an OTA runtime-configuration issue. If v2.1.0 is already unable to start after an update, back up your data and run the full v2.1.1 installer, choosing your existing launcher folder. The v2.1.1 OTA package includes the full runtime and is therefore much larger than v2.1.0’s.
+> **Updating from v2.1.0:** v2.1.1 fixes an OTA runtime-configuration issue. If an older installation cannot start after an update, back up your data before recovering it with the full installer. Starting in v2.1.1, OTA packages include the full runtime and are larger than v2.1.0’s.
 
-Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. Sizes below refer to v2.1.1:
+Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. See the latest Releases page for exact sizes and checksums:
 
-| Package | Exact Size | Best For | Direct Link |
+| Package | Size | Best For | Direct Link |
 | :--- | :---: | :--- | :---: |
-| **`Nova-Setup-Full.exe`** *(Recommended)* | **72,878,592 B** | **Complete Offline Installer.** Embeds Nova Launcher, `nova-cli`, and the full `.NET 8` runtime in one `.exe`. Installs in seconds without internet and creates Desktop & Start Menu shortcuts. | [**Download Full `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
-| **`Nova-Web-Setup.exe`** | **68,096 B** | **Tiny Online Installer.** Ideal for quick sharing on Discord/Telegram; automatically fetches and installs the newest GitHub release. | [**Download Web `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
-| **`Nova-Portable-Full-win-x64.zip`** | **72,819,138 B** | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
-| **`nova-bin-win-x64.zip`** | **72,810,197 B** | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
+| **`Nova-Setup-Full.exe`** *(Recommended)* | See release | **Complete Offline Installer.** Embeds Nova Launcher, `nova-cli`, and the full `.NET 8` runtime in one `.exe`. Installs in seconds without internet and creates Desktop & Start Menu shortcuts. | [**Download Full `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
+| **`Nova-Web-Setup.exe`** | See release | **Tiny Online Installer.** Ideal for quick sharing on Discord/Telegram; automatically fetches and installs the newest GitHub release. | [**Download Web `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
+| **`Nova-Portable-Full-win-x64.zip`** | See release | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
+| **`nova-bin-win-x64.zip`** | See release | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
 
 ### System Requirements
 - **OS:** Windows 10 (version 1809+) or Windows 11 — **64-bit (`x64`)**
 - **RAM:** 4 GB minimum (8 GB+ recommended for heavy Forge/NeoForge modpacks)
 - **Disk:** ~180 MB extracted for Nova Launcher + space for Minecraft assets, portable JDKs, and instances
-- **Dependencies:** **None** — `.NET 8` is bundled inside Full packages, and Adoptium Java (`8` / `17` / `21`) is provisioned automatically per Minecraft version.
+- **Dependencies:** **None** — `.NET 8` is bundled inside Full packages, and Adoptium Java is provisioned when needed for supported Minecraft versions.
 
 ---
 
@@ -78,7 +78,7 @@ Full packages include .NET 8; Java and Minecraft files are downloaded when neede
 
 ### How Accounts & Login Work
 Nova supports **both** official and offline play seamlessly from the **Accounts** tab:
-1. **Official Microsoft Accounts (Device-Code OAuth2):** Sign in securely via Microsoft's official browser device-code flow (`microsoft.com/link`). Nova never sees your password — tokens are stored locally inside `accounts/` and refreshed automatically for online multiplayer servers.
+1. **Official Microsoft Accounts (Device-Code OAuth2):** Sign in securely via Microsoft's official browser device-code flow (`microsoft.com/link`). Nova never sees your password — tokens are stored locally in `accounts/`, protected with Windows DPAPI for the current user, and refreshed automatically. Existing plaintext backups are not encrypted automatically.
 2. **Standalone Offline Profiles:** Create instant local player handles with deterministic offline UUIDs for singleplayer, LAN worlds, and offline-mode servers — no prior online login or internet connection required.
 
 ### Windows SmartScreen & Antivirus Transparency
@@ -87,16 +87,9 @@ Because Nova Launcher is a free, open-source project without a paid `$400+/yr` c
 - Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
 - For v2.1.1, the four packages and checksums were built and uploaded by [GitHub Actions](https://github.com/abde00037-lang/nova-launcher/actions/runs/45464347081). For v2.1.0, the four binary assets were built and uploaded by [run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
 
-### Release Checksums (`v2.1.1` SHA-256)
+### Release Checksums (SHA-256)
 
-Verify any downloaded file in PowerShell with `Get-FileHash <file> -Algorithm SHA256` (or check [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt) on the [Releases page](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.1)):
-
-```text
-fdf3f917bd8b2cdd6d467b4c19049d1b9659e39643aaf9bd28e30a120a7c5450  Nova-Setup-Full.exe
-090f00e41960e479fe05caa3c25dd2de6669b1d9f26631bb2c96157d8f9e5bb5  Nova-Web-Setup.exe
-e4c621e1fa63834d4e534402dc3818f3a9e091fcbe85b184c005bd5bfae7358e  Nova-Portable-Full-win-x64.zip
-8c26237509418e9d4babee0cc7f00d27a1db506a2cb35acf964c2da326e215d6  nova-bin-win-x64.zip
-```
+Use `Get-FileHash <file> -Algorithm SHA256` and compare it with the `SHA256SUMS.txt` attached to the **same release** as the downloaded file. Find assets and their sizes on the [latest Releases page](https://github.com/abde00037-lang/nova-launcher/releases/latest). Checksums provide integrity, not an independent signature.
 
 ---
 
@@ -144,7 +137,7 @@ Nova/                       # Portable archive root (illustrative)
 ├── versions/               # Mojang, Forge, Fabric & NeoForge manifests
 ├── libraries/              # Shared Maven library cache (deduplicated across packs)
 ├── assets/                 # Shared Minecraft asset object store
-├── java/                   # Auto-provisioned portable Adoptium JDK 8 / 17 / 21
+├── java/                   # Auto-provisioned portable Adoptium Java
 ├── backups/                # Non-destructive world snapshots (.zip)
 └── logs/                   # UI & diagnostic logs
 ```
@@ -191,13 +184,13 @@ nova-cli self-update apply --root "C:\path\to\Nova"
 The updater copies the staged application files into `bin\`; it does not intentionally delete your instances, worlds, mods or accounts. Back up important data before updating. This is a file overlay, not a binary delta patch.
 
 **2. Do I need to install Java or .NET 8 manually?**  
-**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The v2.1.0 OTA archive contained framework-dependent files and could break a self-contained installation. Starting with v2.1.1, OTA packages include the self-contained application and runtime; they are larger, but do not overwrite self-contained configuration with framework-dependent files. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
+**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The v2.1.0 OTA archive contained framework-dependent files and could break a self-contained installation. Starting with v2.1.1, OTA packages include the self-contained application and runtime; they are larger, but do not overwrite self-contained configuration with framework-dependent files. Java is downloaded when required into `java\` for supported versions.
 
 **3. How do I enable CurseForge mod search alongside Modrinth?**  
 Modrinth works out of the box with zero configuration. To unlock CurseForge search and modpack downloads, paste a free Eternal API key from [console.curseforge.com](https://console.curseforge.com/) into **Configuration → CurseForge API Token**.
 
 **4. Can I move my entire Nova folder to another PC or USB drive?**  
-**Yes.** Because all paths inside Nova are resolved relative to the launcher root, you can copy or move the entire `NovaLauncher/` folder anywhere and launch immediately with all instances, mods, and worlds intact.
+You can copy the launcher and world data, but paths in instance settings may need adjustment. Microsoft tokens are bound to the Windows user and PC by DPAPI; sign in again after moving if required.
 
 ---
 

@@ -9,7 +9,7 @@ on:
       tag:
         description: 'Release tag to publish (e.g. v2.1.0 or v3.0.0)'
         required: true
-        default: 'v2.1.0'
+        default: 'v2.1.3'
 
 permissions:
   contents: write
@@ -43,6 +43,8 @@ jobs:
             $rawTag = "${{ github.ref_name }}"
           }
           $ver = $rawTag.TrimStart('v', 'V')
+          $projectVersion = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version
+          if ($ver -ne $projectVersion -or $ver -notmatch '^\d+\.\d+\.\d+$') { throw "Release tag version must match Directory.Build.props (x.y.z)" }
           Write-Output "tag=$rawTag" >> $env:GITHUB_OUTPUT
           Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
           Write-Host "Building tag=$rawTag (Version=$ver)"
@@ -65,14 +67,18 @@ jobs:
         run: |
           $v = "v${{ steps.ver.outputs.version }}"
           $csc = "$env:windir\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          $assemblyVersion = "${{ steps.ver.outputs.version }}.0"
+          $webSrc = (Get-Content "installer\NovaWebSetup.cs" -Raw) -replace 'AssemblyVersion\("[^"]+"\)', "AssemblyVersion(`"$assemblyVersion`")" -replace 'AssemblyFileVersion\("[^"]+"\)', "AssemblyFileVersion(`"$assemblyVersion`")"
+          Set-Content -Path "installer\NovaWebSetup.build.cs" -Value $webSrc -Encoding UTF8
           & $csc /nologo /target:winexe /optimize+ `
             /out:"Nova-Web-Setup.exe" `
             /win32icon:"src\Nova.App\app.ico" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
-            "installer\NovaWebSetup.cs"
+            "installer\NovaWebSetup.build.cs" "installer\SafeInstallerZip.cs"
           if ($LASTEXITCODE -ne 0) { throw 'Web installer compilation failed' }
+          Remove-Item "installer\NovaWebSetup.build.cs" -Force -ErrorAction SilentlyContinue
 
-          $offlineSrc = (Get-Content "installer\NovaOfflineSetup.cs" -Raw) -replace 'public const string EmbeddedVersion = "[^"]+";', "public const string EmbeddedVersion = `"$v`";"
+          $offlineSrc = (Get-Content "installer\NovaOfflineSetup.cs" -Raw) -replace 'public const string EmbeddedVersion = "[^"]+";', "public const string EmbeddedVersion = `"$v`";" -replace 'AssemblyVersion\("[^"]+"\)', "AssemblyVersion(`"$assemblyVersion`")" -replace 'AssemblyFileVersion\("[^"]+"\)', "AssemblyFileVersion(`"$assemblyVersion`")" -replace 'Full offline installer for Nova Workbench v[0-9.]+', "Full offline installer for Nova Workbench $v"
           Set-Content -Path "installer\NovaOfflineSetup.build.cs" -Value $offlineSrc -Encoding UTF8
 
           & $csc /nologo /target:winexe /optimize+ `
@@ -80,9 +86,13 @@ jobs:
             /win32icon:"src\Nova.App\app.ico" `
             /resource:"Nova-Portable-Full-win-x64.zip,NovaFullPayload.zip" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
-            "installer\NovaOfflineSetup.build.cs"
+            "installer\NovaOfflineSetup.build.cs" "installer\SafeInstallerZip.cs"
           if ($LASTEXITCODE -ne 0) { throw 'Full installer compilation failed' }
           Remove-Item "installer\NovaOfflineSetup.build.cs" -Force -ErrorAction SilentlyContinue
+
+      - name: Verify full installer in an isolated directory
+        shell: pwsh
+        run: ./scripts/test-installers-security.ps1 -FullInstaller Nova-Setup-Full.exe
 
       - name: Generate SHA256SUMS.txt
         shell: pwsh
