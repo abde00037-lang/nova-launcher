@@ -19,6 +19,6 @@ If you discover a security vulnerability in **Nova Launcher** (for example: path
 
 ## Binary Transparency & Checksums
 
-- Every official release binary (`Nova-Setup-Full.exe`, `Nova-Web-Setup.exe`, `Nova-Portable-Full-win-x64.zip`, and `nova-bin-win-x64.zip`) is built directly from public source code on GitHub-hosted runners via [`.github/workflows/release.yml`](.github/workflows/release.yml).
-- Every release publishes **`SHA256SUMS.txt`** alongside GitHub's native per-asset SHA-256 digests so users can independently verify file integrity before execution.
+- The four v2.1.0 binary assets were built and uploaded by [GitHub Actions run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706). The current [release workflow](.github/workflows/release.yml) is configured to build release packages on GitHub-hosted runners.
+- For v2.1.0, **`SHA256SUMS.txt`** was uploaded separately after the build; the current workflow is configured to generate it for future releases. GitHub also displays per-asset SHA-256 digests. Hashes help verify that a download matches the published file; they do not prove it is safe.
 - Microsoft account sign-in uses Microsoft's official browser **OAuth2 Device-Code Flow** — Nova never prompts for or sees your Microsoft password.

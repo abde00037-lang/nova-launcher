@@ -19,7 +19,7 @@
 
 <br />
 
-[**⬇ Download Full Offline Setup (`69.5 MB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) · [**⚡ Web Setup (`68 KB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) · [**📦 Portable `.zip` (`69.5 MB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) · [**🔐 SHA-256 Checksums**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt)
+[**⬇ Download Full Offline Setup**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) · [**⚡ Web Setup**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) · [**📦 Portable `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) · [**🔐 SHA-256 Checksums**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 **Nova Launcher** (powered by the **Nova Workbench** desktop UI) is a fast, self-contained Minecraft launcher, modloader installer, and modpack manager built on **.NET 8 & WPF**.
 
-Unlike traditional launchers that scatter files across `%APPDATA%\.minecraft` or require manual runtime setup, Nova keeps **100% of its files inside a single portable directory** — launcher executables live exclusively in `bin\`, while your instances, worlds, mods, libraries, Java runtimes, and accounts stay isolated and untouched across every update.
+The portable package keeps the application and its data under a launcher directory rather than `%APPDATA%\.minecraft`. The full installer defaults to `%LOCALAPPDATA%\NovaWorkbench` and can create Windows shortcuts. Back up important data before updates.
 
 <p align="center">
   <img src="docs/screenshots/showcase.gif" alt="Nova Launcher — Animated Tour" width="96%" />
@@ -44,7 +44,7 @@ Unlike traditional launchers that scatter files across `%APPDATA%\.minecraft` or
 | Capability | Nova Launcher | Prism Launcher | Modrinth App |
 | :--- | :---: | :---: | :---: |
 | **Portable by Default** (zero `%APPDATA%` footprint out of the box) | **Yes** | Optional portable zip | Installed app |
-| **Delta-Style `bin\` OTA Updates** (~700 KB download, 3s restart, saves untouched) | **Yes** | Full app update | Built-in updater |
+| **Lightweight OTA updates** (updates files in `bin\`; data kept separately) | **Yes** | Full app update | Built-in updater |
 | **Account Modes Supported** | **Microsoft + Standalone Offline** | Microsoft (+ offline after MS login) | Microsoft |
 | **Native 1-Click Modloaders** (`Vanilla`, `Forge`, `Fabric`, `NeoForge`) | **Yes** | Yes (+ Quilt) | Yes (+ Quilt) |
 | **Built-in Mod Sources** (with automatic required dependencies) | **Modrinth + CurseForge** | Modrinth + CurseForge | Modrinth |
@@ -55,14 +55,14 @@ Unlike traditional launchers that scatter files across `%APPDATA%\.minecraft` or
 
 ## Download & Installation
 
-No external `.NET` or Java installation is required — pick the package that fits your workflow:
+Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. Sizes below refer to v2.1.0:
 
 | Package | Exact Size | Best For | Direct Link |
 | :--- | :---: | :--- | :---: |
-| **`Nova-Setup-Full.exe`** *(Recommended)* | **69.5 MB** *(72,878,592 B)* | **Complete Offline Installer.** Embeds Nova Launcher, `nova-cli`, and the full `.NET 8` runtime in one `.exe`. Installs in seconds without internet and creates Desktop & Start Menu shortcuts. | [**Download Full `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
-| **`Nova-Web-Setup.exe`** | **68 KB** *(68,096 B)* | **Tiny Online Installer.** Ideal for quick sharing on Discord/Telegram; automatically fetches and installs the newest GitHub release. | [**Download Web `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
-| **`Nova-Portable-Full-win-x64.zip`** | **69.5 MB** *(72,819,042 B)* | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
-| **`nova-bin-win-x64.zip`** | **721 KB** *(738,055 B)* | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
+| **`Nova-Setup-Full.exe`** *(Recommended)* | **72,878,592 B** | **Complete Offline Installer.** Embeds Nova Launcher, `nova-cli`, and the full `.NET 8` runtime in one `.exe`. Installs in seconds without internet and creates Desktop & Start Menu shortcuts. | [**Download Full `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
+| **`Nova-Web-Setup.exe`** | **68,096 B** | **Tiny Online Installer.** Ideal for quick sharing on Discord/Telegram; automatically fetches and installs the newest GitHub release. | [**Download Web `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
+| **`Nova-Portable-Full-win-x64.zip`** | **72,819,042 B** | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
+| **`nova-bin-win-x64.zip`** | **738,055 B** | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
 
 ### System Requirements
 - **OS:** Windows 10 (version 1809+) or Windows 11 — **64-bit (`x64`)**
@@ -82,8 +82,8 @@ Nova supports **both** official and offline play seamlessly from the **Accounts*
 ### Windows SmartScreen & Antivirus Transparency
 Because Nova Launcher is a free, open-source project without a paid `$400+/yr` commercial EV code-signing certificate:
 - Windows Defender SmartScreen may show **"Windows protected your PC"** on first run — click **More info → Run anyway**.
-- Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`, 68 KB) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
-- Every release artifact is compiled transparently on GitHub-hosted runners via [`.github/workflows/release.yml`](.github/workflows/release.yml) and published with both GitHub's native asset hashes and [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt).
+- Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
+- For v2.1.0, the four binary assets were built and uploaded by [GitHub Actions run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
 
 ### Release Checksums (`v2.1.0` SHA-256)
 
@@ -128,14 +128,16 @@ Install any official release (`1.8` – `1.21.4+`) cleanly or pair it in one cli
 ## Portable Directory Architecture
 
 ```text
-NovaLauncher/
+Nova/                       # Portable archive root (illustrative)
 ├── Start Nova.bat          # Quick launcher shortcut
 ├── settings.json           # Accent theme, CurseForge API key, OTA update channel
 ├── accounts/               # Saved Microsoft OAuth2 & Offline player profiles
 ├── bin/                    # Launcher & CLI binaries ONLY (swapped during OTA updates)
 │   ├── Nova.exe            # Nova Workbench desktop UI
 │   ├── nova-cli.exe        # Headless command-line interface
-│   └── Nova.Core.dll       # Shared core engine
+│   ├── Nova.Core.dll       # Shared core engine
+│   ├── hostfxr.dll, hostpolicy.dll, coreclr.dll  # Bundled .NET runtime components
+│   └── ...                 # Additional .NET/WPF and app files (not shown)
 ├── instances/              # Isolated modpacks & profiles (mods, config, saves)
 ├── versions/               # Mojang, Forge, Fabric & NeoForge manifests
 ├── libraries/              # Shared Maven library cache (deduplicated across packs)
@@ -148,6 +150,8 @@ NovaLauncher/
 ---
 
 ## Command-Line Interface (`nova-cli`)
+
+The CLI defaults to `bin\data` when launched from `bin\`, unlike the desktop UI which uses the parent launcher folder. Pass `--root <launcher-directory>` to use the same data as the UI.
 
 ```powershell
 # List instances & detected Java runtimes
@@ -182,10 +186,10 @@ nova-cli self-update apply
 ## Frequently Asked Questions (FAQ)
 
 **1. Will updating Nova Launcher delete my worlds, mods, or accounts?**  
-**Never.** Nova's OTA self-updater (`LauncherUpdater`) replaces only the lightweight executables inside `bin\`. Your `instances\`, `saves\`, `mods\`, `accounts\`, and `settings.json` live outside `bin\` and are never modified or deleted.
+The updater copies the staged application files into `bin\`; it does not intentionally delete your instances, worlds, mods or accounts. Back up important data before updating. This is a file overlay, not a binary delta patch.
 
 **2. Do I need to install Java or .NET 8 manually?**  
-**No.** `Nova-Setup-Full.exe` and `Nova-Portable-Full-win-x64.zip` embed the `.NET 8` runtime inside `bin\`, and Nova automatically downloads the exact portable Adoptium Java runtime (`JDK 8` for 1.8–1.16.5, `JDK 17` for 1.17–1.20.4, `JDK 21` for 1.20.5+) into `java\`.
+**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The much smaller OTA archive contains only framework-dependent application files, not the runtime. Its compatibility with a self-contained installation after applying an update still needs verification; keep a backup and use the full installer if needed. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
 
 **3. How do I enable CurseForge mod search alongside Modrinth?**  
 Modrinth works out of the box with zero configuration. To unlock CurseForge search and modpack downloads, paste a free Eternal API key from [console.curseforge.com](https://console.curseforge.com/) into **Configuration → CurseForge API Token**.
