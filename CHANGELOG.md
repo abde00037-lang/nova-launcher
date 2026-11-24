@@ -2,6 +2,12 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.1] — 2026-11-24
+### Fixed
+- The OTA payload now contains a complete self-contained .NET/WPF publish instead of framework-dependent configs. This avoids the v2.1.0 runtime mismatch at the cost of a larger download.
+- CLI self-updates target the running launcher bin directory, even when its data root differs.
+- CI tests overlaying the new package on the v2.1.0 portable bundle with .NET runtime lookup isolated, and checks that sample data is preserved.
+
 ## [v2.1.0] — 2026-11-24
 ### Added
 - **Standalone Full Offline Installer (`Nova-Setup-Full.exe`):** Single-file Windows setup embedding Nova Workbench, `nova-cli`, and the full `.NET 8` + `WPF` runtime for zero-dependency offline installation.

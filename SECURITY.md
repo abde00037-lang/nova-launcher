@@ -6,8 +6,8 @@ Only the latest published `v2.x` release receives active security and bugfix upd
 
 | Version | Supported |
 | :--- | :---: |
-| **`v2.1.x` (Latest)** | **Yes** |
-| `< v2.1.0` | Upgrade via **UPDATE & RESTART** |
+| **`v2.1.1` (Latest)** | **Yes** |
+| `< v2.1.1` | Upgrade to v2.1.1; back up data first |
 
 ## Reporting a Vulnerability
 

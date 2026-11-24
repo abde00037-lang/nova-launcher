@@ -39,12 +39,12 @@ The portable package keeps the application and its data under a launcher directo
 
 ## Why Nova Launcher?
 
-*Comparison snapshot as of November 2026 — Prism Launcher and Modrinth App are both great launchers; Nova focuses specifically on a zero-footprint portable folder, lightweight `bin\` OTA swaps, and full GUI + CLI parity.*
+*Comparison snapshot as of November 2026 — Prism Launcher and Modrinth App are both great launchers. Nova offers a portable bundle and an OTA updater.*
 
 | Capability | Nova Launcher | Prism Launcher | Modrinth App |
 | :--- | :---: | :---: | :---: |
 | **Portable by Default** (zero `%APPDATA%` footprint out of the box) | **Yes** | Optional portable zip | Installed app |
-| **Lightweight OTA updates** (updates files in `bin\`; data kept separately) | **Yes** | Full app update | Built-in updater |
+| **OTA updates** (overlays app files in `bin\`) | **Yes** | Full app update | Built-in updater |
 | **Account Modes Supported** | **Microsoft + Standalone Offline** | Microsoft (+ offline after MS login) | Microsoft |
 | **Native 1-Click Modloaders** (`Vanilla`, `Forge`, `Fabric`, `NeoForge`) | **Yes** | Yes (+ Quilt) | Yes (+ Quilt) |
 | **Built-in Mod Sources** (with automatic required dependencies) | **Modrinth + CurseForge** | Modrinth + CurseForge | Modrinth |
@@ -55,16 +55,16 @@ The portable package keeps the application and its data under a launcher directo
 
 ## Download & Installation
 
-> **OTA warning:** In an isolated v2.1.0 test, overlaying the OTA package on the self-contained bundle made the CLI unable to find .NET. Until fixed, avoid OTA on full/portable installs; back up your data and use the full installer instead.
+> **Updating from v2.1.0:** v2.1.1 fixes an OTA runtime-configuration issue. If v2.1.0 is already unable to start after an update, back up your data and run the full v2.1.1 installer, choosing your existing launcher folder. The v2.1.1 OTA package includes the full runtime and is therefore much larger than v2.1.0’s.
 
-Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. Sizes below refer to v2.1.0:
+Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. Sizes below refer to v2.1.1:
 
 | Package | Exact Size | Best For | Direct Link |
 | :--- | :---: | :--- | :---: |
 | **`Nova-Setup-Full.exe`** *(Recommended)* | **72,878,592 B** | **Complete Offline Installer.** Embeds Nova Launcher, `nova-cli`, and the full `.NET 8` runtime in one `.exe`. Installs in seconds without internet and creates Desktop & Start Menu shortcuts. | [**Download Full `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
 | **`Nova-Web-Setup.exe`** | **68,096 B** | **Tiny Online Installer.** Ideal for quick sharing on Discord/Telegram; automatically fetches and installs the newest GitHub release. | [**Download Web `.exe`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
-| **`Nova-Portable-Full-win-x64.zip`** | **72,819,042 B** | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
-| **`nova-bin-win-x64.zip`** | **738,055 B** | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
+| **`Nova-Portable-Full-win-x64.zip`** | **72,819,138 B** | **Zero-Setup Portable Archive.** Extract anywhere (PC drive or USB stick) and run `Start Nova.bat` or `bin\Nova.exe`. | [**Download `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
+| **`nova-bin-win-x64.zip`** | **72,810,197 B** | **OTA Update Payload.** Downloaded automatically by Nova's built-in **UPDATE & RESTART** banner. | *Handled Automatically* |
 
 ### System Requirements
 - **OS:** Windows 10 (version 1809+) or Windows 11 — **64-bit (`x64`)**
@@ -85,17 +85,17 @@ Nova supports **both** official and offline play seamlessly from the **Accounts*
 Because Nova Launcher is a free, open-source project without a paid `$400+/yr` commercial EV code-signing certificate:
 - Windows Defender SmartScreen may show **"Windows protected your PC"** on first run — click **More info → Run anyway**.
 - Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
-- For v2.1.0, the four binary assets were built and uploaded by [GitHub Actions run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
+- For v2.1.1, the four packages and checksums were built and uploaded by [GitHub Actions](https://github.com/abde00037-lang/nova-launcher/actions/runs/45464347081). For v2.1.0, the four binary assets were built and uploaded by [run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
 
-### Release Checksums (`v2.1.0` SHA-256)
+### Release Checksums (`v2.1.1` SHA-256)
 
-Verify any downloaded file in PowerShell with `Get-FileHash <file> -Algorithm SHA256` (or check [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt) on the [Releases page](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.0)):
+Verify any downloaded file in PowerShell with `Get-FileHash <file> -Algorithm SHA256` (or check [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt) on the [Releases page](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.1)):
 
 ```text
-a70327929f0d397de66446aee350f630aa0da984a0bef93df26a3266d7fd8315  Nova-Setup-Full.exe
-7d7aee48ec9fb1de576f4aacb13ea91e1c41fc1df8c03dccafe3ad396e42b156  Nova-Web-Setup.exe
-af01fcdcf97a3aeb1ec15e1fb85dfcfb5bae8549feaf27acbacc07ec71b41c4d  Nova-Portable-Full-win-x64.zip
-71a46a2ff9a80f21356c04bc709730711dc56c044b4de343e66156c115c24efd  nova-bin-win-x64.zip
+fdf3f917bd8b2cdd6d467b4c19049d1b9659e39643aaf9bd28e30a120a7c5450  Nova-Setup-Full.exe
+090f00e41960e479fe05caa3c25dd2de6669b1d9f26631bb2c96157d8f9e5bb5  Nova-Web-Setup.exe
+e4c621e1fa63834d4e534402dc3818f3a9e091fcbe85b184c005bd5bfae7358e  Nova-Portable-Full-win-x64.zip
+8c26237509418e9d4babee0cc7f00d27a1db506a2cb35acf964c2da326e215d6  nova-bin-win-x64.zip
 ```
 
 ---
@@ -134,7 +134,7 @@ Nova/                       # Portable archive root (illustrative)
 ├── Start Nova.bat          # Quick launcher shortcut
 ├── settings.json           # Accent theme, CurseForge API key, OTA update channel
 ├── accounts/               # Saved Microsoft OAuth2 & Offline player profiles
-├── bin/                    # Launcher & CLI binaries ONLY (swapped during OTA updates)
+├── bin/                    # Launcher, CLI and bundled runtime; OTA overlays files here
 │   ├── Nova.exe            # Nova Workbench desktop UI
 │   ├── nova-cli.exe        # Headless command-line interface
 │   ├── Nova.Core.dll       # Shared core engine
@@ -179,8 +179,8 @@ nova-cli pack import MyPack.mrpack --name "My Modpack"
 nova-cli pack export create-pack --worlds
 
 # Check or apply launcher OTA updates
-nova-cli self-update check
-nova-cli self-update apply
+nova-cli self-update check --root "C:\path\to\Nova"
+nova-cli self-update apply --root "C:\path\to\Nova"
 ```
 
 ---
@@ -191,7 +191,7 @@ nova-cli self-update apply
 The updater copies the staged application files into `bin\`; it does not intentionally delete your instances, worlds, mods or accounts. Back up important data before updating. This is a file overlay, not a binary delta patch.
 
 **2. Do I need to install Java or .NET 8 manually?**  
-**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The much smaller OTA archive contains only framework-dependent application files, not the runtime. **Warning:** an isolated test of the v2.1.0 OTA overlay caused the CLI to fail to find .NET, because the OTA runtime configuration requests an installed framework. Avoid using OTA on self-contained installs until this is fixed; back up your data and use the full installer for updates. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
+**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The v2.1.0 OTA archive contained framework-dependent files and could break a self-contained installation. Starting with v2.1.1, OTA packages include the self-contained application and runtime; they are larger, but do not overwrite self-contained configuration with framework-dependent files. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
 
 **3. How do I enable CurseForge mod search alongside Modrinth?**  
 Modrinth works out of the box with zero configuration. To unlock CurseForge search and modpack downloads, paste a free Eternal API key from [console.curseforge.com](https://console.curseforge.com/) into **Configuration → CurseForge API Token**.
