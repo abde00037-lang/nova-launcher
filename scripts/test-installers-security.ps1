@@ -6,6 +6,8 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 try {
     $csc = "$env:windir\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+    $offlineSource = (Resolve-Path 'installer\NovaOfflineSetup.cs').Path
+    $helperSource = (Resolve-Path 'installer\SafeInstallerZip.cs').Path
     foreach ($kind in @('good','bad')) {
         $zipPath = Join-Path $root "$kind.zip"
         $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
@@ -21,7 +23,7 @@ try {
         $exe = Join-Path $root "$kind.exe"
         & $csc /nologo /target:winexe "/out:$exe" "/resource:$zipPath,NovaFullPayload.zip" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
-            'installer/NovaOfflineSetup.cs' 'installer/SafeInstallerZip.cs'
+            $offlineSource $helperSource
         if ($LASTEXITCODE -ne 0) { throw 'Synthetic installer compilation failed' }
         $dest = Join-Path $root "install-$kind"
         New-Item -ItemType Directory -Path "$dest/instances/demo/saves" -Force | Out-Null
