@@ -56,6 +56,7 @@ namespace NovaSetup
                 }
                 catch (Exception ex)
                 {
+                    try { File.WriteAllText(Path.Combine(Path.GetTempPath(), "nova-web-setup-error.log"), ex.ToString()); } catch { }
                     Console.Error.WriteLine("Setup failed: " + ex.Message);
                     return 1;
                 }
@@ -88,6 +89,7 @@ namespace NovaSetup
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create(api);
                 req.UserAgent = "NovaWorkbench-Setup/2.1";
                 req.Accept = "application/vnd.github+json";
+                req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
                 req.Timeout = 20000;
 
                 string json;
@@ -163,9 +165,10 @@ namespace NovaSetup
             Directory.CreateDirectory(Path.Combine(targetRoot, "versions"));
             Directory.CreateDirectory(Path.Combine(targetRoot, "logs"));
 
-            // Check if self-contained runtime (hostfxr.dll / coreclr.dll) already exists in target\bin
+            // Check if self-contained runtime (hostfxr.dll / coreclr.dll) already exists in target\bin or --lite flag passed
             bool hasSelfContainedRuntime = File.Exists(Path.Combine(targetBin, "coreclr.dll")) || HasSystemDotNet8Desktop();
-            bool useFastBinPack = hasSelfContainedRuntime && !string.IsNullOrEmpty(rel.BinZipUrl) && File.Exists(Path.Combine(targetBin, "Nova.exe"));
+            bool forceLite = Environment.CommandLine.IndexOf("--lite", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool useFastBinPack = forceLite || (hasSelfContainedRuntime && !string.IsNullOrEmpty(rel.BinZipUrl) && File.Exists(Path.Combine(targetBin, "Nova.exe")));
 
             string downloadUrl = useFastBinPack ? rel.BinZipUrl : (rel.FullZipUrl ?? rel.BinZipUrl);
             long expectedBytes = useFastBinPack ? rel.BinZipSize : (rel.FullZipSize > 0 ? rel.FullZipSize : rel.BinZipSize);
