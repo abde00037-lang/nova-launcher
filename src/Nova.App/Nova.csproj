@@ -3,8 +3,8 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>Nova</AssemblyName>
     <RootNamespace>Nova.App</RootNamespace>
-    <Version>2.0.0</Version>
-    <InformationalVersion>2.0.0</InformationalVersion>
+    <Version>2.1.0</Version>
+    <InformationalVersion>2.1.0</InformationalVersion>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
