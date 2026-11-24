@@ -63,7 +63,7 @@ Choose whichever package suits you best — **no external `.NET` or Java install
 - **Integrated Modrinth & CurseForge Store:** Search, filter, and install mods with automatic **required dependency resolution** across Forge, Fabric, and NeoForge.
 
 <p align="center">
-  <img src="docs/screenshots/mods.png" alt="Nova Workbench — Installed Mods & Updater" width="96%" />
+  <img src="docs/screenshots/store.png" alt="Nova Workbench — Mod Catalog &amp; Store" width="96%" />
 </p>
 
 ---
