@@ -55,6 +55,8 @@ The portable package keeps the application and its data under a launcher directo
 
 ## Download & Installation
 
+> **OTA warning:** In an isolated v2.1.0 test, overlaying the OTA package on the self-contained bundle made the CLI unable to find .NET. Until fixed, avoid OTA on full/portable installs; back up your data and use the full installer instead.
+
 Full packages include .NET 8; Java and Minecraft files are downloaded when needed. Pick the package that fits your workflow. Sizes below refer to v2.1.0:
 
 | Package | Exact Size | Best For | Direct Link |
@@ -189,7 +191,7 @@ nova-cli self-update apply
 The updater copies the staged application files into `bin\`; it does not intentionally delete your instances, worlds, mods or accounts. Back up important data before updating. This is a file overlay, not a binary delta patch.
 
 **2. Do I need to install Java or .NET 8 manually?**  
-**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The much smaller OTA archive contains only framework-dependent application files, not the runtime. Its compatibility with a self-contained installation after applying an update still needs verification; keep a backup and use the full installer if needed. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
+**For the initial full installation, no separate .NET installation is needed.** The installer contains a compressed portable bundle; on extraction, `bin\` contains the app alongside hundreds of .NET 8/WPF runtime files, including `coreclr.dll`, `hostfxr.dll` and `hostpolicy.dll`. The much smaller OTA archive contains only framework-dependent application files, not the runtime. **Warning:** an isolated test of the v2.1.0 OTA overlay caused the CLI to fail to find .NET, because the OTA runtime configuration requests an installed framework. Avoid using OTA on self-contained installs until this is fixed; back up your data and use the full installer for updates. Java is downloaded when required (`8`, `17`, or `21`) into `java\`.
 
 **3. How do I enable CurseForge mod search alongside Modrinth?**  
 Modrinth works out of the box with zero configuration. To unlock CurseForge search and modpack downloads, paste a free Eternal API key from [console.curseforge.com](https://console.curseforge.com/) into **Configuration → CurseForge API Token**.
