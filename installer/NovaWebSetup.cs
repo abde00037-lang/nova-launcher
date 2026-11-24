@@ -86,17 +86,39 @@ namespace NovaSetup
             return Task.Run(() =>
             {
                 string api = "https://api.github.com/repos/" + RepoSlug + "/releases/latest";
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(api);
-                req.UserAgent = "NovaWorkbench-Setup/2.1";
-                req.Accept = "application/vnd.github+json";
-                req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-                req.Timeout = 20000;
-
-                string json;
-                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                string sysCurl = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "curl.exe");
+                string json = null;
+                if (File.Exists(sysCurl))
                 {
-                    json = sr.ReadToEnd();
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = sysCurl,
+                        Arguments = "-f -s -L --retry 3 -H \"Accept: application/vnd.github+json\" -A \"NovaWorkbench-Setup/2.1\" \"" + api + "\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        StandardOutputEncoding = Encoding.UTF8,
+                        CreateNoWindow = true
+                    };
+                    using (Process p = Process.Start(psi))
+                    {
+                        json = p.StandardOutput.ReadToEnd();
+                        p.WaitForExit(20000);
+                        if (p.ExitCode != 0) json = null;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(api);
+                    req.UserAgent = "NovaWorkbench-Setup/2.1";
+                    req.Accept = "application/vnd.github+json";
+                    req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+                    req.KeepAlive = false;
+                    req.Timeout = 20000;
+                    using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                    using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                    {
+                        json = sr.ReadToEnd();
+                    }
                 }
 
                 ReleaseMetadata meta = new ReleaseMetadata();
@@ -263,6 +285,94 @@ namespace NovaSetup
             {
                 try { Directory.Delete(tempWork, true); } catch { }
             }
+        }
+
+        private static void DownloadResilient(string downloadUrl, string zipFile, long expectedBytes, string tagName, Action<int, string> progress)
+        {
+            string sysCurl = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "curl.exe");
+            if (File.Exists(sysCurl))
+            {
+                if (File.Exists(zipFile)) File.Delete(zipFile);
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = sysCurl,
+                    Arguments = "-f -L --retry 4 --retry-delay 2 -A \"NovaWorkbench-Setup/2.1\" -o \"" + zipFile + "\" \"" + downloadUrl + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    int lastPct = -1;
+                    while (!p.WaitForExit(200))
+                    {
+                        try
+                        {
+                            if (File.Exists(zipFile))
+                            {
+                                long cur = new FileInfo(zipFile).Length;
+                                int pct = expectedBytes > 0 ? (int)(8 + (cur * 74 / expectedBytes)) : 50;
+                                if (pct > 82) pct = 82;
+                                if (pct != lastPct)
+                                {
+                                    lastPct = pct;
+                                    double mbDone = cur / (1024.0 * 1024.0);
+                                    double mbTotal = expectedBytes > 0 ? expectedBytes / (1024.0 * 1024.0) : mbDone;
+                                    progress(pct, string.Format("Downloading {0} ({1:0.0} / {2:0.0} MB)…", tagName, mbDone, mbTotal));
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    if (p.ExitCode == 0 && File.Exists(zipFile) && new FileInfo(zipFile).Length > 1024)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            // Fallback to HttpWebRequest with retry
+            Exception lastErr = null;
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(downloadUrl);
+                    req.UserAgent = "NovaWorkbench-Setup/2.1";
+                    req.KeepAlive = false;
+                    req.Timeout = 45000;
+                    using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                    using (Stream net = resp.GetResponseStream())
+                    using (FileStream fs = new FileStream(zipFile, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        long total = resp.ContentLength > 0 ? resp.ContentLength : expectedBytes;
+                        byte[] buf = new byte[65536];
+                        long readTotal = 0;
+                        int n;
+                        int lastPct = -1;
+                        while ((n = net.Read(buf, 0, buf.Length)) > 0)
+                        {
+                            fs.Write(buf, 0, n);
+                            readTotal += n;
+                            int pct = total > 0 ? (int)(8 + (readTotal * 74 / total)) : 50;
+                            if (pct > 82) pct = 82;
+                            if (pct != lastPct)
+                            {
+                                lastPct = pct;
+                                double mbDone = readTotal / (1024.0 * 1024.0);
+                                double mbTotal = total > 0 ? total / (1024.0 * 1024.0) : mbDone;
+                                progress(pct, string.Format("Downloading {0} ({1:0.0} / {2:0.0} MB)…", tagName, mbDone, mbTotal));
+                            }
+                        }
+                    }
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastErr = ex;
+                    System.Threading.Thread.Sleep(800);
+                }
+            }
+            throw lastErr ?? new IOException("Download failed.");
         }
 
         private static bool HasSystemDotNet8Desktop()
