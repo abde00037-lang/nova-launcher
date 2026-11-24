@@ -47,6 +47,14 @@ static class SecurityRegression
         File.WriteAllBytes(smallActual, forged);
         await Reject(() => { NativeExtractor.ExtractAll(new[] { smallActual }, dest, limits: new ArchiveLimits { MaxEntries=20, MaxFileBytes=100, MaxTotalBytes=500, MaxManifestBytes=100 }); return Task.CompletedTask; }, "forged size or corrupt CRC rejected");
         Check(File.ReadAllText(Path.Combine(dest, "keep.txt")) == "keep" && !File.Exists(Path.Combine(dest, "large.dll")), "oversized extraction rolled back");
+        string manyMeta = Path.Combine(sandbox, "many-meta.jar");
+        using (var many = ZipFile.Open(manyMeta, ZipArchiveMode.Create))
+        {
+            for (int i = 0; i < 5000; i++) many.CreateEntry("META-INF/test-" + i + ".txt");
+            using var writer = new StreamWriter(many.CreateEntry("lib/native.dll").Open()); writer.Write("native");
+        }
+        string manyDest = Path.Combine(sandbox, "many-native");
+        Check(NativeExtractor.ExtractAll(new[] { manyMeta }, manyDest) == 1, "large metadata list remains supported");
         var valid = Zip(sandbox, ("META-INF/MANIFEST.MF", "metadata"), ("lib/native.dll", "data"), ("config/a..b", "valid"));
         Check(NativeExtractor.ExtractAll(new[] { valid }, dest) == 2 && File.ReadAllText(Path.Combine(dest, "lib", "native.dll")) == "data", "native normal extraction");
         Check(!File.Exists(Path.Combine(dest, "META-INF", "MANIFEST.MF")), "native ignores metadata");

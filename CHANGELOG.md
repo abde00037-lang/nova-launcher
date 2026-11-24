@@ -2,6 +2,9 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.4] — 2026-11-24
+- Avoided quadratic lookup cost while skipping large Native JAR metadata lists.
+
 ## [v2.1.3] — 2026-11-24
 - Hardened archive extraction, modpack imports, resource limits, and download concurrency; see the source tests for coverage.
 - Split game-log formatting and updater responsibilities incrementally without changing the view-model bindings.

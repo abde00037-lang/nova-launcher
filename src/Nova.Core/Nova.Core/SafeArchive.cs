@@ -66,10 +66,11 @@ internal static class SafeArchive
     {
         limits.ValidateArchive(archive);
         var selected = new List<(ZipArchiveEntry Entry, string Relative)>();
+        HashSet<string>? skipped = skip == null ? null : new HashSet<string>(skip, StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries)
         {
             if (!entry.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-                (skip != null && skip.Contains(entry.FullName, StringComparer.OrdinalIgnoreCase))) continue;
+                (skipped != null && skipped.Contains(entry.FullName))) continue;
             string rel = entry.FullName.Substring(prefix.Length);
             if (rel.Length == 0) continue;
             bool directory = rel.EndsWith('/') || rel.EndsWith('\\');
