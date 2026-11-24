@@ -7,7 +7,7 @@
 **لانشر ماينكرافت سريع ومحمول ومدير مودباكات آمن لنظام ويندوز**  
 *مزوّد بواجهة **Nova Workbench** المكتبية وأداة الأوامر `nova-cli`*
 
-[**English**](README.md) · [**العربية**](README.ar.md) · [**سجل التغييرات**](CHANGELOG.md) · [**المساهمة**](CONTRIBUTING.md)
+[**English**](README.md) · [**العربية**](README.ar.md) · [**سجل التغييرات**](CHANGELOG.md) · [**الأمان**](SECURITY.md) · [**المساهمة**](CONTRIBUTING.md)
 
 <br />
 
@@ -18,7 +18,7 @@
 
 <br />
 
-[**⬇ تحميل المثبّت الكامل أوفلاين (`.exe`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) · [**⚡ مثبّت الويب الخفيف (`66 KB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) · [**📦 النسخة المحمولة `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) · [**🔐 بصمات التحقق SHA-256**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt)
+[**⬇ تحميل المثبّت الكامل أوفلاين (`69.5 MB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) · [**⚡ مثبّت الويب الخفيف (`68 KB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) · [**📦 النسخة المحمولة `.zip` (`69.5 MB`)**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) · [**🔐 بصمات التحقق SHA-256**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt)
 
 </div>
 
@@ -33,22 +33,24 @@
 بفضل هذا التصميم المحمول، يعمل اللانشر مباشرة من أي مجلد أو فلاشة USB دون بعثرة ملفات داخل `%APPDATA%\.minecraft`، ويستقبل التحديثات الهوائية (OTA) في 3 ثوانٍ **دون المساس بعوالمك أو موداتك إطلاقاً**.
 
 <p align="center">
-  <img src="docs/screenshots/showcase.gif" alt="جولة مصوّرة داخل Nova Workbench" width="96%" />
+  <img src="docs/screenshots/showcase.gif" alt="جولة مصوّرة داخل Nova Launcher" width="96%" />
 </p>
 
 ---
 
 ## لماذا Nova Launcher؟
 
+*مقارنة حتى تاريخ نوفمبر 2026 — كل من Prism Launcher و Modrinth App خيارات ممتازة؛ يركّز Nova تحديداً على المحمولية الكاملة بدون كتابة في النظام، والتحديث الهوائي الخفيف لمجلد `bin\` فقط، والتكافؤ التام بين الواجهة وسطر الأوامر.*
+
 | الميزة | Nova Launcher | Prism Launcher | Modrinth App |
 | :--- | :---: | :---: | :---: |
-| **محمول بالكامل 100%** (لا يكتب شيئاً في `%APPDATA%`) | **نعم** | نسخة مضغوطة | لا (تثبيت نظام) |
-| **تحديث هوائي ذاتي آمن (3 ثوانٍ)** يحدّث `bin\` فقط دون لمس العوالم | **نعم** | يدوي / مثبّت | مدمج |
-| **حسابات Microsoft الرسمية + حسابات أوفلاين محلية** جاهزة فوراً | **كلاهما** | يشترط حساب مايكروسوفت أولاً | مايكروسوفت فقط |
-| **دعم 4 مودلودرات بضغطة زر** (`Vanilla`, `Forge`, `Fabric`, `NeoForge`) | **نعم** | نعم | نعم |
-| **متجر مزدوج** (Modrinth + CurseForge مع حل الاعتماديات تلقائياً) | **كلاهما** | كلاهما | Modrinth فقط |
-| **تحليل الانهيارات مع زر تعطيل المود المسبب بضغطة زر** | **نعم** | عرض السجل فقط | عرض السجل فقط |
-| **أداة سطر أوامر كاملة (`nova-cli`)** بنفس محرك الواجهة | **نعم** | جزئي | لا |
+| **محمول افتراضياً 100%** (لا يكتب شيئاً في `%APPDATA%`) | **نعم** | يتوفر كخيار محمول | تطبيق مثبّت |
+| **تحديث هوائي خفيف (`~700 KB`)** يحدّث `bin\` فقط في 3 ثوانٍ دون لمس العوالم | **نعم** | تحديث كامل للتطبيق | مدمج |
+| **أنماط الحسابات المدعومة** | **Microsoft + حساب أوفلاين مستقل مباشرة** | Microsoft (+ أوفلاين بعد ربط MS) | Microsoft |
+| **دعم المودلودرات بضغطة زر** (`Vanilla`, `Forge`, `Fabric`, `NeoForge`) | **نعم** | نعم (+ Quilt) | نعم (+ Quilt) |
+| **مصادر المودات المدمجة** (مع حل الاعتماديات تلقائياً) | **Modrinth + CurseForge** | Modrinth + CurseForge | Modrinth |
+| **كشف المود المسبب للانهيار + زر تعطيله بضغطة واحدة على شريط التنبيه** | **نعم** | عرض ورفع سجل الانهيار | عرض سجل الانهيار |
+| **أداة سطر أوامر كاملة (`nova-cli`)** للتثبيت والفحص وتحديث المودات | **نعم** | خيارات تشغيل واستيراد | واجهة رسومية |
 
 ---
 
@@ -56,40 +58,64 @@
 
 لا تحتاج إلى تثبيت `.NET` أو `Java` يدوياً — كل شيء مجهّز تلقائياً:
 
-| الحزمة | الحجم | الاستخدام الأنسب | الرابط المباشر |
+| الحزمة | الحجم الفعلي | الاستخدام الأنسب | الرابط المباشر |
 | :--- | :---: | :--- | :---: |
-| **`Nova-Setup-Full.exe`** *(موصى به)* | **~69.5 MB** | **المثبّت الكامل أوفلاين.** يحتوي على اللانشر وأداة `nova-cli` وحزمة `.NET 8` مدمجة بالكامل داخل ملف واحد؛ يثبّت في ثوانٍ بدون إنترنت وينشئ اختصار سطح المكتب. | [**تحميل `.exe` الكامل**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
-| **`Nova-Web-Setup.exe`** | **~66 KB** | **مثبّت الويب الخفيف.** مثالي للإرسال السريع على Discord/Telegram؛ يجلب أحدث إصدار تلقائياً من GitHub. | [**تحميل `.exe` الخفيف**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
-| **`Nova-Portable-Full-win-x64.zip`** | **~69.5 MB** | **الأرشيف المحمول الجاهز.** فك الضغط في أي مكان وشغّل `Start Nova.bat`. | [**تحميل `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
+| **`Nova-Setup-Full.exe`** *(موصى به)* | **69.5 MB** | **المثبّت الكامل أوفلاين.** يحتوي على اللانشر وأداة `nova-cli` وحزمة `.NET 8` مدمجة بالكامل داخل ملف واحد؛ يثبّت في ثوانٍ بدون إنترنت وينشئ اختصار سطح المكتب. | [**تحميل `.exe` الكامل**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Setup-Full.exe) |
+| **`Nova-Web-Setup.exe`** | **68 KB** | **مثبّت الويب الخفيف.** مثالي للإرسال السريع على Discord/Telegram؛ يجلب أحدث إصدار تلقائياً من GitHub. | [**تحميل `.exe` الخفيف**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Web-Setup.exe) |
+| **`Nova-Portable-Full-win-x64.zip`** | **69.5 MB** | **الأرشيف المحمول الجاهز.** فك الضغط في أي مكان وشغّل `Start Nova.bat`. | [**تحميل `.zip`**](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/Nova-Portable-Full-win-x64.zip) |
 
 - **متطلبات التشغيل:** ويندوز 10 أو 11 بمعمارية **64-بت (`x64`)**، وذاكرة عشوائية 4 GB كحد أدنى (يُنصح بـ 8 GB+ للمودباكات الكبيرة).
 
 ---
 
-## الحسابات والأمان والتحقق من الملفات (SHA-256)
+## الحسابات والأمان وبصمات التحقق (`SHA-256`)
 
-- **تسجيل الدخول (Microsoft + Offline):** يدعم تسجيل الدخول الرسمي بحسابات مايكروسوفت عبر رمز الجهاز الآمن (`OAuth2 Device Code` بدون إدخال كلمة المرور داخل اللانشر)، كما يدعم إنشاء حسابات محلية أوفلاين للعب الفردي والشبكة المحلية (LAN).
-- **تنبيه Windows SmartScreen وبرامج الحماية:** لأن المشروع مجاني ومفتوح المصدر بدون شهادة توقيع تجارية مدفوعة، قد تظهر نافذة SmartScreen عند أول تشغيل — اضغط **More info ← Run anyway**. وإذا اعترض برنامج الحماية على مثبّت الويب الصغير (`66 KB`)، استخدم المثبّت الكامل **`Nova-Setup-Full.exe`** المبني بالكامل عبر GitHub Actions مع ملف التحقق [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt).
+- **تسجيل الدخول (Microsoft + Offline):** يدعم تسجيل الدخول الرسمي بحسابات مايكروسوفت عبر رمز الجهاز الآمن (`OAuth2 Device Code` بدون إدخال كلمة المرور داخل اللانشر)، كما يدعم إنشاء حسابات محلية أوفلاين مباشرة بدون إنترنت.
+- **تنبيه Windows SmartScreen وبرامج الحماية:** لأن المشروع مجاني ومفتوح المصدر بدون شهادة توقيع تجارية مدفوعة، قد تظهر نافذة SmartScreen عند أول تشغيل — اضغط **More info ← Run anyway**. وإذا اعترض برنامج الحماية على مثبّت الويب الصغير (`68 KB`)، استخدم المثبّت الكامل **`Nova-Setup-Full.exe`**.
+
+### بصمات التحقق للإصدار `v2.1.0` (`SHA-256`)
+
+يمكنك التحقق عبر الأمر `Get-FileHash <file> -Algorithm SHA256` ومطابقته مع ملف [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/latest/download/SHA256SUMS.txt):
+
+```text
+a70327929f0d397de66446aee350f630aa0da984a0bef93df26a3266d7fd8315  Nova-Setup-Full.exe
+7d7aee48ec9fb1de576f4aacb13ea91e1c41fc1df8c03dccafe3ad396e42b156  Nova-Web-Setup.exe
+af01fcdcf97a3aeb1ec15e1fb85dfcfb5bae8549feaf27acbacc07ec71b41c4d  Nova-Portable-Full-win-x64.zip
+71a46a2ff9a80f21356c04bc709730711dc56c044b4de343e66156c115c24efd  nova-bin-win-x64.zip
+```
+
+---
+
+## الأسئلة الشائعة (FAQ)
+
+**1. هل تحديث Nova Launcher يحذف عوالمي أو موداتي أو حساباتي؟**  
+**إطلاقاً.** المحدّث الذاتي يستبدل ملفات التشغيل داخل `bin\` فقط، بينما تبقى مجلدات `instances\` و `saves\` و `mods\` و `accounts\` و `settings.json` خارج `bin\` ولا تُلمس أبداً.
+
+**2. هل أحتاج إلى تثبيت Java أو .NET 8 يدوياً؟**  
+**لا.** حزمة `.NET 8` مدمجة داخل `Nova-Setup-Full.exe` و `Nova-Portable-Full-win-x64.zip`، كما يقوم اللانشر بتحميل نسخة Java المحمولة المناسبة (`8` أو `17` أو `21`) تلقائياً لكل إصدار ماينكرافت.
+
+**3. هل يمكنني نقل مجلد اللانشر بالكامل إلى جهاز آخر أو فلاشة USB؟**  
+**نعم.** جميع المسارات نسبية داخل مجلد `NovaLauncher/`، ويمكنك نقله بالكامل وتشغيله فوراً بكل نسخه وعوالمه.
 
 ---
 
 ## لقطات من داخل الواجهة
 
 <p align="center">
-  <img src="docs/screenshots/overview.png" alt="لوحة القيادة الرئيسية" width="96%" />
+  <img src="docs/screenshots/overview.png" alt="Nova Launcher — لوحة القيادة الرئيسية" width="96%" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/versions.png" alt="تثبيت الإصدارات والمودلودرات" width="96%" />
+  <img src="docs/screenshots/versions.png" alt="Nova Launcher — تثبيت الإصدارات والمودلودرات" width="96%" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/store.png" alt="متجر المودات Mod Catalog" width="96%" />
+  <img src="docs/screenshots/store.png" alt="Nova Launcher — متجر المودات" width="96%" />
 </p>
 
 ---
 
-## الترخيص
+## الترخيص والأمان
 
-مرخّص بموجب رخصة [MIT](LICENSE).  
-*مشروع مجتمعي مستقل غير تابع لشركة Mojang Studios أو Microsoft.*
+- للإبلاغ عن الثغرات الأمنية راجع [**SECURITY.md**](SECURITY.md)، وللمساهمة راجع [**CONTRIBUTING.md**](CONTRIBUTING.md).
+- مرخّص بموجب رخصة [MIT](LICENSE). مشروع مجتمعي مستقل غير تابع لشركة Mojang Studios أو Microsoft.
 
 </div>
