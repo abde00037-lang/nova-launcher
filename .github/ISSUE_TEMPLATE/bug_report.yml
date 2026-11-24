@@ -1,0 +1,31 @@
+name: Bug Report
+description: Report a crash, launch failure, or UI issue in Nova Launcher
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Nova Launcher Version
+      placeholder: e.g. v2.1.0
+    validations:
+      required: true
+  - type: input
+    id: mc_version
+    attributes:
+      label: Minecraft Version & Modloader
+      placeholder: e.g. 1.20.1 Forge 47.3.0 / 1.21.4 Fabric
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the problem and steps to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs (logs\nova-ui.log or Diagnostic Stream)
+      render: text

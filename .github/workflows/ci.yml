@@ -1,0 +1,40 @@
+name: CI Build & Verify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8.0 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore & Build Nova.Core, Nova.App (WPF), and nova-cli
+        shell: pwsh
+        run: |
+          dotnet build src/Nova.App/Nova.csproj -c Release -r win-x64 --no-self-contained
+          dotnet build src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --no-self-contained
+
+      - name: Verify Standalone Installers Compile Cleanly
+        shell: pwsh
+        run: |
+          $csc = "$env:windir\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /optimize+ `
+            /out:"Nova-Web-Setup.exe" `
+            /win32icon:"src\Nova.App\app.ico" `
+            /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
+            "installer\NovaWebSetup.cs"
+
+      - name: CLI Smoke Check
+        shell: pwsh
+        run: |
+          & "src/Nova.Cli/bin/Release/net8.0/win-x64/nova-cli.exe" --help
