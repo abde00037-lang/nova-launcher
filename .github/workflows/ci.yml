@@ -22,7 +22,9 @@ jobs:
         shell: pwsh
         run: |
           dotnet build src/Nova.App/Nova.csproj -c Release -r win-x64 --no-self-contained
+          if ($LASTEXITCODE -ne 0) { throw "App build failed" }
           dotnet build src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --no-self-contained
+          if ($LASTEXITCODE -ne 0) { throw "CLI build failed" }
 
       - name: Verify Standalone Installers Compile Cleanly
         shell: pwsh
@@ -33,8 +35,19 @@ jobs:
             /win32icon:"src\Nova.App\app.ico" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
             "installer\NovaWebSetup.cs"
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
 
       - name: CLI Smoke Check
         shell: pwsh
         run: |
-          & "src/Nova.Cli/bin/Release/net8.0/win-x64/nova-cli.exe" --help
+          & "src/Nova.Cli/bin/Release/net8.0/win-x64/nova-cli.exe" help
+          if ($LASTEXITCODE -ne 0) { throw "CLI smoke test failed" }
+
+      - name: Test self-contained OTA overlay
+        shell: pwsh
+        run: |
+          ./scripts/build-release-packages.ps1 -Version 2.1.1
+          curl.exe -fLsS --retry 3 -o baseline-v2.1.0.zip https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.0/Nova-Portable-Full-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download baseline' }
+          if ((Get-FileHash baseline-v2.1.0.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'af01fcdcf97a3aeb1ec15e1fb85dfcfb5bae8549feaf27acbacc07ec71b41c4d') { throw 'Baseline hash mismatch' }
+          ./scripts/test-ota.ps1 -OtaZip nova-bin-win-x64.zip -BaselineZip baseline-v2.1.0.zip

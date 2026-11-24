@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
@@ -39,37 +41,18 @@ jobs:
           Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
           Write-Host "Building tag=$rawTag (Version=$ver)"
 
-      - name: Build Nova.App & nova-cli (Framework-dependent OTA package)
+      - name: Publish self-contained portable and OTA packages
         shell: pwsh
         run: |
-          $v = "${{ steps.ver.outputs.version }}"
-          dotnet build src/Nova.App/Nova.csproj -c Release -r win-x64 --no-self-contained -p:Version=$v -p:InformationalVersion=$v
-          dotnet build src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --no-self-contained -p:Version=$v -p:InformationalVersion=$v
+          ./scripts/build-release-packages.ps1 -Version "${{ steps.ver.outputs.version }}"
 
-          New-Item -ItemType Directory -Force -Path artifact-ota | Out-Null
-          Copy-Item "src/Nova.App/bin/Release/net8.0-windows/win-x64/Nova.*" artifact-ota/ -Force
-          Copy-Item "src/Nova.App/bin/Release/net8.0-windows/win-x64/Nova.Core.*" artifact-ota/ -Force
-          Copy-Item "src/Nova.Cli/bin/Release/net8.0/win-x64/nova-cli.*" artifact-ota/ -Force
-
-          Compress-Archive -Path "artifact-ota/*" -DestinationPath "nova-bin-win-x64.zip" -Force
-
-      - name: Publish Self-Contained Portable Bundle (Zero .NET install required for friends)
+      - name: Verify OTA against v2.1.0 portable baseline
         shell: pwsh
         run: |
-          $v = "${{ steps.ver.outputs.version }}"
-          New-Item -ItemType Directory -Force -Path "portable/Nova/bin" | Out-Null
-          New-Item -ItemType Directory -Force -Path "portable/Nova/instances" | Out-Null
-          New-Item -ItemType Directory -Force -Path "portable/Nova/versions" | Out-Null
-          New-Item -ItemType Directory -Force -Path "portable/Nova/logs" | Out-Null
-
-          dotnet publish src/Nova.App/Nova.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$v -p:InformationalVersion=$v -o "portable/Nova/bin"
-          dotnet publish src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$v -p:InformationalVersion=$v -o "portable/Nova/bin"
-
-          # Create handy root shortcut script
-          "@echo off`r`nstart `"`" `"%~dp0bin\Nova.exe`"" | Set-Content -Path "portable/Nova/Start Nova.bat" -Encoding ASCII
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          if (Test-Path "Nova-Portable-Full-win-x64.zip") { Remove-Item "Nova-Portable-Full-win-x64.zip" -Force }
-          [IO.Compression.ZipFile]::CreateFromDirectory("portable/Nova", "Nova-Portable-Full-win-x64.zip", [IO.Compression.CompressionLevel]::Optimal, $true)
+          curl.exe -fLsS --retry 3 -o baseline-v2.1.0.zip https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.0/Nova-Portable-Full-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download baseline' }
+          if ((Get-FileHash baseline-v2.1.0.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'af01fcdcf97a3aeb1ec15e1fb85dfcfb5bae8549feaf27acbacc07ec71b41c4d') { throw 'Baseline hash mismatch' }
+          ./scripts/test-ota.ps1 -OtaZip nova-bin-win-x64.zip -BaselineZip baseline-v2.1.0.zip
 
       - name: Compile Lightweight Web Installer & Full Standalone Offline Setup (.exe)
         shell: pwsh
@@ -81,6 +64,7 @@ jobs:
             /win32icon:"src\Nova.App\app.ico" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
             "installer\NovaWebSetup.cs"
+          if ($LASTEXITCODE -ne 0) { throw 'Web installer compilation failed' }
 
           $offlineSrc = (Get-Content "installer\NovaOfflineSetup.cs" -Raw) -replace 'public const string EmbeddedVersion = "[^"]+";', "public const string EmbeddedVersion = `"$v`";"
           Set-Content -Path "installer\NovaOfflineSetup.build.cs" -Value $offlineSrc -Encoding UTF8
@@ -91,6 +75,7 @@ jobs:
             /resource:"Nova-Portable-Full-win-x64.zip,NovaFullPayload.zip" `
             /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
             "installer\NovaOfflineSetup.build.cs"
+          if ($LASTEXITCODE -ne 0) { throw 'Full installer compilation failed' }
           Remove-Item "installer\NovaOfflineSetup.build.cs" -Force -ErrorAction SilentlyContinue
 
       - name: Generate SHA256SUMS.txt
