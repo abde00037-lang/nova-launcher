@@ -794,7 +794,11 @@ internal static class Program
 		{
 			Progress<string> log = new Progress<string>((string l) => Console.WriteLine("  " + l));
 			string staged = LauncherUpdater.StageUpdateAsync(_paths, info, log).GetAwaiter().GetResult();
-			string targetBin = Path.Combine(_paths.Root, "bin");
+			// Update the running launcher's bin, not the CLI data root (which may be bin/data).
+			string executableDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string targetBin = Path.GetFileName(executableDir).Equals("bin", StringComparison.OrdinalIgnoreCase)
+				? executableDir
+				: Path.Combine(_paths.Root, "bin");
 			LauncherUpdater.LaunchDetachedSwapper(staged, targetBin, Environment.ProcessId, relaunchGui: false);
 			Row("applied", "staged swapper launched -> " + targetBin);
 		}
