@@ -17,6 +17,8 @@ public sealed class Downloader : IDisposable
 
 	private readonly ConcurrentDictionary<string, string?> _hashCache = new ConcurrentDictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
+	public string? LastError { get; private set; }
+
 	public long BytesDownloaded;
 
 	public int FilesDownloaded;
@@ -123,8 +125,10 @@ public sealed class Downloader : IDisposable
 					TryDelete(tmp);
 					throw;
 				}
-				catch
+				catch (Exception ex)
 				{
+					// Hide URLs (which may contain signed query parameters) from user-visible logs.
+					LastError = ex.GetType().Name + ": " + System.Text.RegularExpressions.Regex.Replace(ex.Message, @"https?://\S+", "[URL hidden]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 					TryDelete(tmp);
 					if (attempt == 3)
 					{

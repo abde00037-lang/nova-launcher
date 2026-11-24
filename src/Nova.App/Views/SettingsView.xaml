@@ -31,7 +31,7 @@
             </StackPanel>
           </Grid>
 
-          <TextBlock Text="Updates swap only the lightweight bin\ executables (~700 KB) from GitHub Releases. Installed instances, worlds, mods, accounts, and settings are never touched."
+          <TextBlock Text="Updates replace launcher files from GitHub Releases and may include the .NET runtime. Your instances, worlds, mods, accounts, and settings are kept."
                      Style="{StaticResource Muted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,6,0,12" />
 
           <Grid>

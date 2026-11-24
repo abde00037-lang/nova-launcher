@@ -23,7 +23,6 @@ public static class VersionLibrary
 
 	public const string Oldest = "1.8";
 
-	public const string Newest = "1.21.4";
 
 	private const string PromotionsUrl = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 
@@ -56,7 +55,7 @@ public static class VersionLibrary
 			{
 				dictionary.TryGetValue(item.Id, out var value);
 				neoMap.TryGetValue(item.Id, out string? neoVer);
-				bool hasFabric = (fabricSet.Count > 0) ? fabricSet.Contains(item.Id) : (Compare(item.Id, "1.14") >= 0);
+				bool hasFabric = fabricSet.Contains(item.Id);
 				MinecraftVersion minecraftVersion = new MinecraftVersion
 				{
 					Id = item.Id,
@@ -178,11 +177,7 @@ public static class VersionLibrary
 		{
 			return false;
 		}
-		if (Compare(id, "1.8") >= 0)
-		{
-			return Compare(id, "1.21.4") <= 0;
-		}
-		return false;
+		return Compare(id, Oldest) >= 0;
 	}
 
 	private static bool IsReleaseLike(string id)

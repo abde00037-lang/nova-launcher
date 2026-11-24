@@ -25,6 +25,10 @@ foreach ($f in @('Nova.runtimeconfig.json','nova-cli.runtimeconfig.json')) {
 New-Item -Type Directory -Force "$root/instances/test/saves", "$bin/data", "$WorkDir/no-dotnet" | Out-Null
 Set-Content -Path "$root/instances/test/saves/sentinel.txt" -Value 'world-preserved'
 Set-Content -Path "$bin/data/sentinel.txt" -Value 'cli-data-preserved'
+New-Item -Type Directory -Force "$root/instances/test/mods", "$root/accounts" | Out-Null
+Set-Content -Path "$root/instances/test/mods/sentinel.jar" -Value 'mod-preserved'
+Set-Content -Path "$root/accounts/sentinel.json" -Value 'account-preserved'
+Set-Content -Path "$root/settings.json" -Value 'settings-preserved'
 $oldRoot = $env:DOTNET_ROOT; $oldRootX64 = ${env:DOTNET_ROOT_X64}; $oldMulti = $env:DOTNET_MULTILEVEL_LOOKUP; $oldGui = $env:DOTNET_DISABLE_GUI_ERRORS
 try {
     $env:DOTNET_ROOT = "$WorkDir/no-dotnet"; ${env:DOTNET_ROOT_X64} = "$WorkDir/no-dotnet"; $env:DOTNET_MULTILEVEL_LOOKUP = '0'; $env:DOTNET_DISABLE_GUI_ERRORS = '1'
@@ -36,6 +40,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Updated CLI could not run in isolated runtime environment' }
     if ((Get-Content "$root/instances/test/saves/sentinel.txt" -Raw).Trim() -ne 'world-preserved') { throw 'Instance data changed' }
     if ((Get-Content "$bin/data/sentinel.txt" -Raw).Trim() -ne 'cli-data-preserved') { throw 'CLI data changed' }
+    if ((Get-Content "$root/instances/test/mods/sentinel.jar" -Raw).Trim() -ne 'mod-preserved') { throw 'Mod data changed' }
+    if ((Get-Content "$root/accounts/sentinel.json" -Raw).Trim() -ne 'account-preserved') { throw 'Account data changed' }
+    if ((Get-Content "$root/settings.json" -Raw).Trim() -ne 'settings-preserved') { throw 'Settings changed' }
     Write-Host 'PASS: self-contained CLI starts after overlay with DOTNET_ROOT isolated; both sentinel files preserved.'
 } finally {
     $env:DOTNET_ROOT = $oldRoot; ${env:DOTNET_ROOT_X64} = $oldRootX64; $env:DOTNET_MULTILEVEL_LOOKUP = $oldMulti; $env:DOTNET_DISABLE_GUI_ERRORS = $oldGui

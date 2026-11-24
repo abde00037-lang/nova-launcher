@@ -28,6 +28,12 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Run security regression tests
+        shell: pwsh
+        run: |
+          dotnet run --project tests/Nova.Regression/Nova.Regression.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Security regression tests failed' }
+
       - name: Determine release version
         id: ver
         shell: pwsh

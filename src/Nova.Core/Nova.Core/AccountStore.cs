@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Nova.Core;
 
@@ -35,9 +36,21 @@ public sealed class AccountStore
 			{
 				try
 				{
-					NovaAccount novaAccount = JsonSerializer.Deserialize<NovaAccount>(File.ReadAllText(path));
+					JsonObject node = JsonNode.Parse(File.ReadAllText(path))?.AsObject() ?? throw new InvalidDataException("Invalid account file.");
+					NovaAccount? novaAccount = node.Deserialize<NovaAccount>();
 					if (novaAccount != null && !string.IsNullOrWhiteSpace(novaAccount.Name))
 					{
+						string? access = node["protectedAccessToken"]?.GetValue<string>();
+						string? refresh = node["protectedRefreshToken"]?.GetValue<string>();
+						if (!string.IsNullOrWhiteSpace(access)) novaAccount.AccessToken = WindowsTokenProtector.Unprotect(access);
+						if (!string.IsNullOrWhiteSpace(refresh)) novaAccount.RefreshToken = WindowsTokenProtector.Unprotect(refresh);
+						// Migrate legacy plaintext only after the account was read successfully.
+						if (OperatingSystem.IsWindows() && novaAccount.IsMicrosoft &&
+						    ((!string.IsNullOrEmpty(novaAccount.AccessToken) && string.IsNullOrEmpty(access)) ||
+						     (!string.IsNullOrEmpty(novaAccount.RefreshToken) && string.IsNullOrEmpty(refresh))))
+						{
+							try { Save(novaAccount); } catch { /* Keep the original account file if migration fails. */ }
+						}
 						list.Add(novaAccount);
 					}
 				}
@@ -59,10 +72,19 @@ public sealed class AccountStore
 
 	public void Save(NovaAccount account)
 	{
-		File.WriteAllText(Path.Combine(Folder, SafeName(account.Id) + ".json"), JsonSerializer.Serialize(account, new JsonSerializerOptions
+		JsonObject node = JsonSerializer.SerializeToNode(account)?.AsObject() ?? throw new InvalidDataException("Could not serialize account.");
+		if (!string.IsNullOrEmpty(account.AccessToken)) node["protectedAccessToken"] = WindowsTokenProtector.Protect(account.AccessToken);
+		if (!string.IsNullOrEmpty(account.RefreshToken)) node["protectedRefreshToken"] = WindowsTokenProtector.Protect(account.RefreshToken);
+		node.Remove("accessToken");
+		node.Remove("refreshToken");
+		string target = Path.Combine(Folder, SafeName(account.Id) + ".json");
+		string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+		try
 		{
-			WriteIndented = true
-		}));
+			File.WriteAllText(temp, node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+			File.Move(temp, target, overwrite: true);
+		}
+		finally { if (File.Exists(temp)) File.Delete(temp); }
 	}
 
 	public void Remove(string id)

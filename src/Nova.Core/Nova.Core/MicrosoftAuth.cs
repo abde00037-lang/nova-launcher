@@ -227,18 +227,7 @@ public sealed class MicrosoftAuth : IDisposable
 		}
 		else
 		{
-			DefaultInterpolatedStringHandler defaultInterpolatedStringHandler = new DefaultInterpolatedStringHandler(4, 5);
-			defaultInterpolatedStringHandler.AppendFormatted(text8.Substring(0, 8));
-			defaultInterpolatedStringHandler.AppendLiteral("-");
-			defaultInterpolatedStringHandler.AppendFormatted(text8.Substring(8, 4));
-			defaultInterpolatedStringHandler.AppendLiteral("-");
-			defaultInterpolatedStringHandler.AppendFormatted(text8.Substring(12, 4));
-			defaultInterpolatedStringHandler.AppendLiteral("-");
-			defaultInterpolatedStringHandler.AppendFormatted(text8.Substring(16, 4));
-			defaultInterpolatedStringHandler.AppendLiteral("-");
-			string text9 = text8;
-			defaultInterpolatedStringHandler.AppendFormatted(text9.Substring(20, text9.Length - 20));
-			uuid = defaultInterpolatedStringHandler.ToStringAndClear();
+			uuid = text8.Substring(0, 8) + "-" + text8.Substring(8, 4) + "-" + text8.Substring(12, 4) + "-" + text8.Substring(16, 4) + "-" + text8.Substring(20);
 		}
 		novaAccount.Uuid = uuid;
 		novaAccount.AccessToken = mcToken;

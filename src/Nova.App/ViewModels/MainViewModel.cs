@@ -2202,6 +2202,10 @@ public sealed class MainViewModel : ObservableObject
 		try
 		{
 			NovaAccount novaAccount = NovaAccount.CreateOffline(OfflineName);
+			if (_accountStore.Find(novaAccount.Id) != null)
+			{
+				throw new ArgumentException("That offline account already exists. Select it from the account list.");
+			}
 			_accountStore.Save(novaAccount);
 			Settings.ActiveAccountId = novaAccount.Id;
 			Settings.Save(Paths);
@@ -2317,7 +2321,7 @@ public sealed class MainViewModel : ObservableObject
 				_versionsLoaded = true;
 				ApplyVersionFilter();
 				int value = Enumerable.Count(_allVersions, (VersionRowVm v) => v.HasForge);
-				VersionStatus = $"{_allVersions.Count} releases between {"1.8"} and {"1.21.4"} · {value} with Forge builds";
+				VersionStatus = $"{_allVersions.Count} releases from 1.8 onward · {value} with Forge builds";
 			});
 		}
 		catch (Exception ex)

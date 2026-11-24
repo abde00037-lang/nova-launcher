@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -22,7 +23,8 @@ public sealed record LauncherUpdateInfo(
 	string? DownloadUrl,
 	string? AssetName,
 	long AssetSizeBytes,
-	DateTimeOffset? PublishedAt);
+	DateTimeOffset? PublishedAt,
+	string? ChecksumUrl = null);
 
 public static class LauncherUpdater
 {
@@ -122,6 +124,7 @@ public static class LauncherUpdater
 		string? downloadUrl = null;
 		string? assetName = null;
 		long assetSize = 0L;
+		string? checksumUrl = null;
 
 		if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
 		{
@@ -130,24 +133,20 @@ public static class LauncherUpdater
 				string aName = (asset.TryGetProperty("name", out var an) ? (an.GetString() ?? "") : "");
 				string aUrl = (asset.TryGetProperty("browser_download_url", out var au) ? (au.GetString() ?? "") : "");
 				long aSize = (asset.TryGetProperty("size", out var az) ? az.GetInt64() : 0L);
-				if (!aName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(aUrl))
+				if (aName.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl))
 				{
-					continue;
+					checksumUrl = aUrl;
 				}
-				if (aName.StartsWith(ExpectedAssetPrefix, StringComparison.OrdinalIgnoreCase) || downloadUrl == null)
+				if (aName.Equals(ExpectedAssetPrefix + ".zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl))
 				{
 					downloadUrl = aUrl;
 					assetName = aName;
 					assetSize = aSize;
-					if (aName.StartsWith(ExpectedAssetPrefix, StringComparison.OrdinalIgnoreCase))
-					{
-						break;
-					}
 				}
 			}
 		}
 
-		return new LauncherUpdateInfo(current, latestClean, tag, title, notes, htmlUrl, downloadUrl, assetName, assetSize, published);
+		return new LauncherUpdateInfo(current, latestClean, tag, title, notes, htmlUrl, downloadUrl, assetName, assetSize, published, checksumUrl);
 	}
 
 	/// <summary>
@@ -161,6 +160,15 @@ public static class LauncherUpdater
 		{
 			throw new InvalidOperationException("This release does not attach a portable update .zip asset.");
 		}
+
+		if (string.IsNullOrWhiteSpace(update.ChecksumUrl) || string.IsNullOrWhiteSpace(update.AssetName))
+		{
+			throw new InvalidDataException("This release has no SHA256SUMS.txt or matching update asset; refusing to update.");
+		}
+		using HttpClient checksumClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+		checksumClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NovaWorkbench/" + CurrentVersion);
+		string sums = await checksumClient.GetStringAsync(update.ChecksumUrl, ct).ConfigureAwait(false);
+		string expectedHash = ExpectedSha256(sums, update.AssetName);
 
 		string workRoot = Path.Combine(paths.Cache, "launcher-update");
 		string zipPath = Path.Combine(workRoot, $"nova-update-{update.LatestVersion}.zip");
@@ -185,13 +193,21 @@ public static class LauncherUpdater
 		using (Downloader downloader = new Downloader(2))
 		{
 			FetchResult fetched = await downloader.EnsureAsync(zipPath, update.DownloadUrl, null, ct).ConfigureAwait(continueOnCapturedContext: false);
-			if (fetched == FetchResult.Failed || !File.Exists(zipPath))
+			if (fetched == FetchResult.Failed || fetched == FetchResult.HashMismatch || !File.Exists(zipPath))
 			{
-				throw new IOException("Failed to download update archive from GitHub Releases.");
+				throw new IOException("Failed to download update archive from GitHub Releases. " + (downloader.LastError ?? "Check your connection and retry."));
 			}
 		}
 
-		log?.Report("verifying update archive…");
+		log?.Report("verifying update SHA-256…");
+		await using (FileStream file = new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true))
+		{
+			string actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file, ct).ConfigureAwait(false));
+			if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+			{
+				throw new InvalidDataException("Update SHA-256 mismatch; no files were installed.");
+			}
+		}
 		ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
 
 		// Support archives where files are either directly at root or inside a bin\ subfolder
@@ -259,6 +275,23 @@ public static class LauncherUpdater
 			CreateNoWindow = true,
 			WorkingDirectory = Path.GetTempPath()
 		});
+	}
+
+	public static string ExpectedSha256(string sums, string assetName)
+	{
+		string? match = null;
+		foreach (string raw in sums.Split('\n'))
+		{
+			string line = raw.Trim();
+			if (line.Length < 67 || !line.Substring(0, 64).All(Uri.IsHexDigit) || !char.IsWhiteSpace(line[64])) continue;
+			string name = line.Substring(65).TrimStart().TrimStart('*');
+			if (name.Equals(assetName, StringComparison.Ordinal))
+			{
+				if (match != null) throw new InvalidDataException("Duplicate update checksum entries.");
+				match = line.Substring(0, 64);
+			}
+		}
+		return match ?? throw new InvalidDataException("The update asset has no valid SHA-256 entry.");
 	}
 
 	private static string EscapePs(string s)

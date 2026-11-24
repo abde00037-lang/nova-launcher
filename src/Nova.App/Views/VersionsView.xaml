@@ -27,7 +27,7 @@
         <TextBlock Text="RELEASE &amp; MODLOADER MATRIX" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
         <TextBlock Text="Versions &amp; Modloaders" Style="{StaticResource H1}" />
         <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
-                   Text="Install any official Minecraft release (1.8 through the latest) as Vanilla or pair it directly with Forge, Fabric, or NeoForge. Java runtimes, libraries, and verified assets are provisioned automatically." />
+                   Text="Browse official Minecraft releases from 1.8 onward. Loader availability depends on each release; newer versions may require additional compatibility work." />
       </StackPanel>
 
       <Border Grid.Column="1" VerticalAlignment="Bottom" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3">

@@ -16,6 +16,10 @@ public sealed class InstanceStore
 
 	public string FolderFor(string id)
 	{
+		if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || !id.All(c => char.IsLetterOrDigit(c) || c == '-' || c == '_'))
+		{
+			throw new ArgumentException("Invalid instance ID: use letters, digits, hyphens or underscores only.", nameof(id));
+		}
 		return Path.Combine(_paths.Instances, id);
 	}
 

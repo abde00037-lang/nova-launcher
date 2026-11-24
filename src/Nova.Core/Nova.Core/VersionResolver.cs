@@ -258,7 +258,11 @@ public static class VersionResolver
 	public static int GuessJavaMajor(string minecraftVersion)
 	{
 		string[] array = minecraftVersion.Split('.', '-');
-		if (array.Length >= 1 && int.TryParse(array[0], out var majorNum) && majorNum >= 25)
+		if (array.Length >= 1 && int.TryParse(array[0], out var majorNum) && majorNum >= 26)
+		{
+			return 25;
+		}
+		if (array.Length >= 1 && int.TryParse(array[0], out majorNum) && majorNum >= 25)
 		{
 			return 21;
 		}

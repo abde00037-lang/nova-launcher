@@ -56,7 +56,7 @@ public sealed class NovaAccount
 		{
 			if (!IsMicrosoft)
 			{
-				return "offline mode · plays single player, no online servers";
+				return "offline identity · singleplayer, LAN and servers that allow offline players";
 			}
 			DateTime? expiresUtc = ExpiresUtc;
 			if (expiresUtc.HasValue)
@@ -77,13 +77,9 @@ public sealed class NovaAccount
 	public static NovaAccount CreateOffline(string name)
 	{
 		string text = (name ?? "").Trim();
-		if (text.Length == 0)
+		if (text.Length < 3 || text.Length > 16 || !text.All(c => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'))
 		{
-			throw new ArgumentException("a player name is required");
-		}
-		if (text.Length > 16)
-		{
-			text = text.Substring(0, 16);
+			throw new ArgumentException("Player name must be 3–16 English letters, digits or underscores.");
 		}
 		return new NovaAccount
 		{
