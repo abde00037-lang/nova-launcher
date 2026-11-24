@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl x:Class="Nova.App.Views.ModsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             xmlns:views="clr-namespace:Nova.App.Views"
+             AllowDrop="True"
+             DragOver="ModsSurface_DragOver"
+             Drop="ModsSurface_Drop">
+
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolVis" />
+  </UserControl.Resources>
+
+  <Grid Margin="26,20,26,22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Header & Mode Controls -->
+    <Grid Grid.Row="0" Margin="0,0,0,14">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <StackPanel Grid.Column="0" Margin="0,0,20,0">
+        <TextBlock Text="MODULATION &amp; UPDATES" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+        <TextBlock Text="Installed Mods" Style="{StaticResource H1}" />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="Drag &amp; drop .jar files anywhere onto this page, check SHA-1 updates against Modrinth, or toggle switches to rename jars to .disabled." />
+      </StackPanel>
+
+      <WrapPanel Grid.Column="1" VerticalAlignment="Bottom">
+        <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3" Margin="0,0,8,0">
+          <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="SegInstalled" Content="INSTALLED" Style="{StaticResource Segment}" Tag="installed" IsChecked="True" automation:AutomationProperties.AutomationId="ModsModeInstalled" Click="Mode_Click" />
+            <RadioButton x:Name="SegDownload" Content="QUICK FETCH" Style="{StaticResource Segment}" Tag="download" automation:AutomationProperties.AutomationId="ModsModeDownload" Click="Mode_Click" />
+          </StackPanel>
+        </Border>
+
+        <Button Content="+ ADD JARS" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" ToolTip="Select local .jar files to copy into mods\" Click="AddJars_Click" />
+        <Button Content="CHECK UPDATES"
+                Style="{StaticResource GhostButton}"
+                FontSize="10.5"
+                Padding="12,8"
+                Margin="6,0,0,0"
+                IsEnabled="{Binding CanCheckModUpdates}"
+                ToolTip="Hash installed JARs and check Modrinth for newer compatible releases"
+                Click="CheckUpdates_Click" />
+        <Button Content="{Binding UpdateAllModsLabel}"
+                Style="{StaticResource PrimaryButton}"
+                FontSize="10.5"
+                Padding="13,8"
+                Margin="6,0,0,0"
+                IsEnabled="{Binding CanUpdateAllMods}"
+                Visibility="{Binding HasPendingModUpdates, Converter={StaticResource BoolVis}}"
+                Click="UpdateAll_Click" />
+        <Button Content="FULL CATALOG" Style="{StaticResource PrimaryButton}" FontSize="10.5" Padding="13,8" Margin="6,0,0,0" Click="OpenStore_Click" />
+        <Button Content="MODS DIR" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" Click="OpenFolder_Click" />
+      </WrapPanel>
+    </Grid>
+
+    <!-- Filter Bar (Installed Mode) -->
+    <Grid Grid.Row="1" Margin="0,0,0,12" Visibility="{Binding ModsInstalledMode, Converter={StaticResource BoolVis}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="340" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="12,0" Height="38">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource DimBrush}" Margin="0,0,10,0" />
+          <TextBox Grid.Column="1" Style="{StaticResource SearchBox}" VerticalAlignment="Center" Text="{Binding ModFilter, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
+          <TextBlock Grid.Column="1" Text="Filter installed mods by name or id…" Style="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" IsHitTestVisible="False"
+                     Visibility="{Binding ModFilter, Converter={StaticResource EmptyToVisible}}" />
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Button automation:AutomationProperties.AutomationId="ModsVersionButton"
+                automation:AutomationProperties.Name="version"
+                Style="{StaticResource GhostButton}"
+                Padding="11,7"
+                FontSize="10.5"
+                Margin="0,0,8,0"
+                ToolTip="Choose target modloader build for Quick Fetch"
+                Content="{Binding ModsTargetButtonLabel}"
+                Click="Target_Click" />
+
+        <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3" Margin="0,0,8,0">
+          <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="SegAll" Content="ALL" Style="{StaticResource Segment}" Tag="All" IsChecked="True" Padding="11,5" Click="State_Click" />
+            <RadioButton x:Name="SegOn" Content="ENABLED" Style="{StaticResource Segment}" Tag="Enabled" Padding="11,5" Click="State_Click" />
+            <RadioButton x:Name="SegOff" Content="DISABLED" Style="{StaticResource Segment}" Tag="Disabled" Padding="11,5" Click="State_Click" />
+          </StackPanel>
+        </Border>
+        <Button Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,7" Content="{Binding ModsSortLabel}" Click="Sort_Click" />
+      </StackPanel>
+    </Grid>
+
+    <!-- INSTALLED MODS LIST -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Visibility="{Binding ModsInstalledMode, Converter={StaticResource BoolVis}}">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="14,9" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+          <Grid>
+            <WrapPanel>
+              <Border Style="{StaticResource Chip}">
+                <TextBlock Text="{Binding Selected.Name}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+              </Border>
+              <Border Style="{StaticResource Chip}">
+                <TextBlock Text="{Binding ModsSummary}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+              </Border>
+              <Border Style="{StaticResource Chip}">
+                <TextBlock Text="{Binding ModsShownLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+              </Border>
+              <Border Style="{StaticResource Chip}" Visibility="{Binding ModsMetaStatus, Converter={StaticResource NonEmptyToVisible}}">
+                <TextBlock Text="{Binding ModsMetaStatus}" FontFamily="{StaticResource MonoFont}" Foreground="{DynamicResource AccentBrush}" FontSize="10.5" />
+              </Border>
+            </WrapPanel>
+            <TextBlock Text="DROP .JAR FILES HERE" Style="{StaticResource SectionLabel}" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.65" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+          <ItemsControl ItemsSource="{Binding Mods}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource CardFlat}" Padding="11,9" Margin="0,0,0,6">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="46" Height="46">
+                      <Border CornerRadius="4" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <Border CornerRadius="4" ClipToBounds="True" Visibility="{Binding HasIcon, Converter={StaticResource BoolVis}}">
+                        <Image Stretch="UniformToFill" Source="{Binding IconPath}" />
+                      </Border>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" FontSize="11.5" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
+                                 Visibility="{Binding HasDescription, Converter={StaticResource BoolVis}}" />
+                      <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <TextBlock Text="{Binding Meta}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+                        <TextBlock Text="  ·  " Style="{StaticResource Muted}" FontSize="10.5" />
+                        <TextBlock Text="{Binding SizeLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+                        <TextBlock Text="{Binding FileName}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10" Opacity="0.55" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                      </StackPanel>
+                    </StackPanel>
+
+                    <!-- Per-mod SHA1 Update Button -->
+                    <Button Grid.Column="2"
+                            Content="{Binding UpdateLabel}"
+                            Style="{StaticResource PrimaryButton}"
+                            FontSize="10"
+                            Padding="11,6"
+                            Margin="0,0,10,0"
+                            VerticalAlignment="Center"
+                            Tag="{Binding}"
+                            IsEnabled="{Binding CanUpdate}"
+                            Visibility="{Binding HasUpdate, Converter={StaticResource BoolVis}}"
+                            Click="UpdateMod_Click" />
+
+                    <TextBlock Grid.Column="3" Text="{Binding StatusLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                    <ToggleButton Grid.Column="4" Style="{StaticResource Switch}" VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+
+                    <Button Grid.Column="5"
+                            Content="&#xE74D;"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="11"
+                            Style="{StaticResource GhostButton}"
+                            Padding="8,6"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="Delete mod JAR from disk"
+                            Tag="{Binding}"
+                            Click="DeleteMod_Click" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- QUICK FETCH / DOWNLOAD MODE -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Visibility="{Binding ModsBrowseMode, Converter={StaticResource BoolVis}}">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="14,12,14,10">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="12,0" Height="38">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource DimBrush}" Margin="0,0,10,0" />
+              <TextBox Grid.Column="1" Style="{StaticResource SearchBox}" VerticalAlignment="Center"
+                       automation:AutomationProperties.AutomationId="ModsBrowseQuery"
+                       automation:AutomationProperties.Name="search mods for this version"
+                       Text="{Binding ModsBrowseQuery, UpdateSourceTrigger=PropertyChanged}"
+                       KeyDown="Browse_KeyDown" />
+              <TextBlock Grid.Column="1" Text="Search a mod (e.g. jei, journeymap, sodium, iris)…" Style="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" IsHitTestVisible="False"
+                         Visibility="{Binding ModsBrowseQuery, Converter={StaticResource EmptyToVisible}}" />
+            </Grid>
+          </Border>
+          <Button Grid.Column="1" Content="SEARCH" Style="{StaticResource PrimaryButton}" Height="38" Margin="8,0,0,0" Padding="22,0" Command="{Binding SearchModBrowseCommand}" />
+        </Grid>
+
+        <Border Grid.Row="1" Padding="16,8" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,1">
+          <StackPanel>
+            <TextBlock Text="{Binding ModsBrowseTargetLine}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding ModsBrowseStatus}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" Opacity="0.8" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="12,10">
+          <ItemsControl ItemsSource="{Binding ModBrowseItems}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource CardFlat}" Padding="11,9" Margin="0,0,0,6">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="46" Height="46">
+                      <Border CornerRadius="4" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <Border CornerRadius="4" ClipToBounds="True" Visibility="{Binding HasIcon, Converter={StaticResource BoolVis}}">
+                        <Image Stretch="UniformToFill" Source="{Binding IconPath}" />
+                      </Border>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,14,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                      <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <TextBlock Text="{Binding Author}" Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock Text="  ·  " Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock Text="{Binding DownloadsLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+                        <TextBlock Text=" dl  ·  " Style="{StaticResource Muted}" FontSize="11" />
+                        <TextBlock Text="{Binding SourceLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="11.5" Opacity="0.9" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                                 Visibility="{Binding HasSummary, Converter={StaticResource BoolVis}}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Style="{StaticResource Chip}" VerticalAlignment="Center" Margin="0,0,8,0"
+                            Visibility="{Binding IsInstalled, Converter={StaticResource BoolVis}}">
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <TextBlock Text="INSTALLED" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10" />
+                      </StackPanel>
+                    </Border>
+
+                    <Button Grid.Column="3"
+                            Style="{StaticResource PrimaryButton}"
+                            FontSize="10.5"
+                            Padding="15,8"
+                            VerticalAlignment="Center"
+                            Content="{Binding DownloadLabel}"
+                            Tag="{Binding}"
+                            IsEnabled="{Binding CanDownload}"
+                            Visibility="{Binding IsInstalled, Converter={StaticResource BoolNotVis}}"
+                            Click="Download_Click" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

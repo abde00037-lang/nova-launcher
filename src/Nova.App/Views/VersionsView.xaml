@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl x:Class="Nova.App.Views.VersionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             xmlns:views="clr-namespace:Nova.App.Views">
+
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolVis" />
+  </UserControl.Resources>
+
+  <Grid Margin="26,20,26,22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Page Header + Mode Switch -->
+    <Grid Grid.Row="0" Margin="0,0,0,14">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Margin="0,0,20,0">
+        <TextBlock Text="RELEASE &amp; MODLOADER MATRIX" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+        <TextBlock Text="Versions &amp; Modloaders" Style="{StaticResource H1}" />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="Install any official Minecraft release (1.8 through the latest) as Vanilla or pair it directly with Forge, Fabric, or NeoForge. Java runtimes, libraries, and verified assets are provisioned automatically." />
+      </StackPanel>
+
+      <Border Grid.Column="1" VerticalAlignment="Bottom" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3">
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="SegMinecraft" Content="ALL" Style="{StaticResource Segment}" Tag="Minecraft" IsChecked="True" Click="Mode_Click" />
+          <RadioButton x:Name="SegForge" Content="FORGE" Style="{StaticResource Segment}" Tag="Forge" Click="Mode_Click" />
+          <RadioButton x:Name="SegFabric" Content="FABRIC" Style="{StaticResource Segment}" Tag="Fabric" Click="Mode_Click" />
+          <RadioButton x:Name="SegNeoForge" Content="NEOFORGE" Style="{StaticResource Segment}" Tag="NeoForge" Click="Mode_Click" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Active Global Installation Progress Banner -->
+    <Border Grid.Row="1"
+            Style="{StaticResource Card}"
+            BorderBrush="{DynamicResource AccentBrush}"
+            Padding="16,12"
+            Margin="0,0,0,14"
+            Visibility="{Binding IsVersionBusy, Converter={StaticResource BoolVis}}">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+          <StackPanel Orientation="Horizontal">
+            <Border Width="7" Height="7" CornerRadius="1.5" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock Text="{Binding VersionActiveLabel}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="  ·  " Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding VersionStatus}" Style="{StaticResource Body}" FontSize="11.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="650" />
+          </StackPanel>
+          <TextBlock Text="{Binding VersionProgressPercent}" FontFamily="{StaticResource MonoFont}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+        <ProgressBar Grid.Row="1" Style="{StaticResource SlimProgress}" Height="7" Margin="0,9,0,0" Maximum="1" Value="{Binding VersionProgress, Mode=OneWay}" />
+      </Grid>
+    </Border>
+
+    <!-- Filter & Summary Strip -->
+    <Grid Grid.Row="2" Margin="0,0,0,12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="340" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="12,0" Height="38">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="11.5" VerticalAlignment="Center" Foreground="{DynamicResource DimBrush}" Margin="0,0,10,0" />
+          <TextBox Grid.Column="1" Style="{StaticResource SearchBox}" VerticalAlignment="Center"
+                   automation:AutomationProperties.AutomationId="VersionSearch"
+                   automation:AutomationProperties.Name="find a version"
+                   Text="{Binding VersionFilter, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
+          <TextBlock Grid.Column="1" Text="Filter version (e.g. 1.12.2, 1.20.1, 1.21.4)…" Style="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" IsHitTestVisible="False"
+                     Visibility="{Binding VersionFilter, Converter={StaticResource EmptyToVisible}}" />
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <Border Style="{StaticResource Chip}">
+          <TextBlock Text="{Binding VersionsSummary}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+        </Border>
+        <Border Style="{StaticResource Chip}">
+          <TextBlock Text="{Binding VersionsShown}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" />
+        </Border>
+        <Button Content="SYNC MANIFEST" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="13,7" Command="{Binding RefreshVersionsCommand}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Main Version Table Card -->
+    <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="16,10" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+          <Grid>
+            <TextBlock Text="{Binding VersionStatus}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding VersionsModeLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource SectionLabel}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer x:Name="VersionScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+          <ItemsControl ItemsSource="{Binding Versions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource CardFlat}" Margin="0,0,0,7" Padding="13,10">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+
+                      <!-- Monospace Version Stamp -->
+                      <Border Grid.Column="0" MinWidth="68" Height="42" CornerRadius="4" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" Padding="8,0">
+                        <TextBlock Text="{Binding Id}" FontFamily="{StaticResource MonoFont}" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+
+                      <!-- Release & Loader Metadata -->
+                      <StackPanel Grid.Column="1" Margin="14,0,14,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock Text="{Binding Id}" Style="{StaticResource Body}" FontSize="13.5" FontWeight="SemiBold" />
+                          <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="3" Padding="6,1" Margin="9,0,0,0" VerticalAlignment="Center"
+                                  Visibility="{Binding Installed, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="LOCAL" FontFamily="{StaticResource MonoFont}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                          </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Subtitle}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+
+                      <!-- Status Chip -->
+                      <Border Grid.Column="2" Style="{StaticResource Chip}" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding StateLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10" />
+                      </Border>
+
+                      <!-- Row Actions -->
+                      <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="FOLDER"
+                                Style="{StaticResource GhostButton}"
+                                FontSize="10"
+                                Padding="9,7"
+                                Tag="{Binding}"
+                                automation:AutomationProperties.AutomationId="VersionFolder"
+                                automation:AutomationProperties.Name="Open version folder"
+                                ToolTip="Open versions folder in Explorer"
+                                Visibility="{Binding Installed, Converter={StaticResource BoolVis}}"
+                                Click="Folder_Click" />
+
+                        <Button Content="&#xE74D;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="11"
+                                Style="{StaticResource GhostButton}"
+                                Padding="9,7"
+                                Margin="5,0,0,0"
+                                Tag="{Binding}"
+                                automation:AutomationProperties.AutomationId="VersionDelete"
+                                automation:AutomationProperties.Name="Delete version"
+                                ToolTip="Delete downloaded version files"
+                                IsEnabled="{Binding CanInstall}"
+                                Visibility="{Binding Installed, Converter={StaticResource BoolVis}}"
+                                Click="Delete_Click" />
+
+                        <Button Content="VANILLA"
+                                Style="{StaticResource GhostButton}"
+                                FontSize="10"
+                                Padding="10,7"
+                                Margin="5,0,0,0"
+                                Tag="{Binding}"
+                                ToolTip="Install clean Vanilla profile"
+                                IsEnabled="{Binding DataContext.CanInstallVersion, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Click="GetVanilla_Click" />
+
+                        <Button Content="+ FABRIC"
+                                Style="{StaticResource GhostButton}"
+                                FontSize="10"
+                                Padding="10,7"
+                                Margin="5,0,0,0"
+                                Tag="{Binding}"
+                                ToolTip="Install with latest stable Fabric Loader"
+                                IsEnabled="{Binding DataContext.CanInstallVersion, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding HasFabric, Converter={StaticResource BoolVis}}"
+                                Click="GetFabric_Click" />
+
+                        <Button Content="+ NEOFORGE"
+                                Style="{StaticResource GhostButton}"
+                                FontSize="10"
+                                Padding="10,7"
+                                Margin="5,0,0,0"
+                                Tag="{Binding}"
+                                ToolTip="Install with latest NeoForge modloader"
+                                IsEnabled="{Binding DataContext.CanInstallVersion, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding HasNeoForge, Converter={StaticResource BoolVis}}"
+                                Click="GetNeoForge_Click" />
+
+                        <Button Content="+ FORGE"
+                                Style="{StaticResource PrimaryButton}"
+                                FontSize="10"
+                                Padding="12,7"
+                                Margin="5,0,0,0"
+                                Tag="{Binding}"
+                                ToolTip="Install with recommended Forge modloader"
+                                IsEnabled="{Binding DataContext.CanInstallVersion, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Visibility="{Binding HasForge, Converter={StaticResource BoolVis}}"
+                                Click="GetForge_Click" />
+                      </StackPanel>
+                    </Grid>
+
+                    <!-- Inline Per-Row Progress Bar -->
+                    <Border Grid.Row="1"
+                            Margin="0,10,0,2"
+                            Padding="10,8"
+                            Background="{DynamicResource BgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}">
+                      <Grid>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                          <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding ProgressStage}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="  —  " FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource DimBrush}" />
+                            <TextBlock Text="{Binding ProgressDetail}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" MaxWidth="540" />
+                          </StackPanel>
+                          <TextBlock Text="{Binding ProgressPercentLabel}" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Right" />
+                        </Grid>
+                        <ProgressBar Grid.Row="1" Style="{StaticResource SlimProgress}" Height="6" Margin="0,6,0,0" Maximum="1" Value="{Binding ProgressFraction, Mode=OneWay}" />
+                      </Grid>
+                    </Border>
+
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

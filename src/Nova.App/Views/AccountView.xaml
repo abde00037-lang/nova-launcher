@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl x:Class="Nova.App.Views.AccountView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:Nova.App.Views">
+
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolVis" />
+  </UserControl.Resources>
+
+  <Grid Margin="26,20,26,22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,14">
+      <TextBlock Text="AUTHENTICATION" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
+      <TextBlock Text="Player Identities" Style="{StaticResource H1}" />
+      <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                 Text="Authenticate via official Microsoft OAuth2 for online servers, skins, and Realms, or switch instantly to an offline local identity." />
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,0,0,14">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="14" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Offline Identity Card -->
+      <Border Grid.Column="0" Style="{StaticResource Card}" Padding="18,16">
+        <StackPanel>
+          <TextBlock Text="LOCAL OFFLINE IDENTITY" Style="{StaticResource SectionLabel}" />
+          <TextBlock Style="{StaticResource Muted}" FontSize="11.5" Margin="0,5,0,12" TextWrapping="Wrap"
+                     Text="Deterministic offline UUID for singleplayer worlds and LAN sessions — works with zero internet." />
+
+          <Border Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="11,0" Height="38">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource DimBrush}" Margin="0,0,10,0" />
+              <TextBox Grid.Column="1" Style="{StaticResource SearchBox}" FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center" MaxLength="16"
+                       Text="{Binding OfflineName, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Grid.Column="1" Text="Player handle (e.g. Abde)" Style="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" IsHitTestVisible="False"
+                         Visibility="{Binding OfflineName, Converter={StaticResource EmptyToVisible}}" />
+            </Grid>
+          </Border>
+
+          <Button Content="ACTIVATE OFFLINE HANDLE"
+                  Style="{StaticResource PrimaryButton}"
+                  FontSize="11"
+                  Padding="15,9"
+                  HorizontalAlignment="Left"
+                  Margin="0,12,0,0"
+                  Command="{Binding AddOfflineCommand}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Microsoft OAuth2 Card -->
+      <Border Grid.Column="2" Style="{StaticResource Card}" Padding="18,16">
+        <StackPanel>
+          <TextBlock Text="MICROSOFT / XBOX LIVE OAUTH" Style="{StaticResource SectionLabel}" />
+          <TextBlock Style="{StaticResource Muted}" FontSize="11.5" Margin="0,5,0,12" TextWrapping="Wrap"
+                     Text="Genuine Minecraft Services session via device-code flow (microsoft.com/link)." />
+
+          <Button Content="SIGN IN WITH MICROSOFT"
+                  Style="{StaticResource PrimaryButton}"
+                  FontSize="11"
+                  Padding="15,9"
+                  HorizontalAlignment="Left"
+                  Command="{Binding SignInMicrosoftCommand}"
+                  IsEnabled="{Binding CanSignInMicrosoft}" />
+
+          <Border Style="{StaticResource CardFlat}" Padding="13,11" Margin="0,12,0,0"
+                  Visibility="{Binding HasDeviceCode, Converter={StaticResource BoolVis}}">
+            <StackPanel>
+              <TextBlock Text="ENTER DEVICE CODE AT MICROSOFT.COM/LINK" Style="{StaticResource SectionLabel}" />
+              <TextBlock Text="{Binding DeviceCode}" FontSize="21" FontWeight="Bold" FontFamily="{StaticResource MonoFont}" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,8" />
+              <StackPanel Orientation="Horizontal">
+                <Button Content="COPY CODE" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="11,6" Click="CopyCode_Click" />
+                <Button Content="OPEN BROWSER" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="11,6" Margin="8,0,0,0" Click="OpenLink_Click" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Text="{Binding MicrosoftStatus}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Saved Accounts List -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="16,10" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+          <Grid>
+            <TextBlock Text="{Binding AccountsSummary}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="11" />
+            <TextBlock Text="{Binding ActiveAccountLabel}" FontFamily="{StaticResource MonoFont}" Foreground="{DynamicResource AccentBrush}" FontSize="11" HorizontalAlignment="Right" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+          <ItemsControl ItemsSource="{Binding Accounts}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border CornerRadius="5" Margin="0,0,0,7" Padding="12,10" BorderThickness="1">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Background" Value="{DynamicResource SecondaryBrush}" />
+                      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                          <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="40" Height="40" CornerRadius="4" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1">
+                      <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource MonoFont}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="13.5" />
+                      <TextBlock Text="{Binding Subtitle}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" Style="{StaticResource Chip}" VerticalAlignment="Center" Margin="0,0,10,0">
+                      <TextBlock Text="{Binding KindLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10" />
+                    </Border>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                      <Button Content="SELECT" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="13,6" Tag="{Binding}" Click="Use_Click" />
+                      <Button Content="REMOVE" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="13,6" Margin="6,0,0,0" Tag="{Binding}" Click="Remove_Click" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

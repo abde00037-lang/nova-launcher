@@ -1,0 +1,80 @@
+name: Release Nova Workbench
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v2.1.0 or v3.0.0)'
+        required: true
+        default: 'v2.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Determine release version
+        id: ver
+        shell: pwsh
+        run: |
+          $rawTag = "${{ github.event.inputs.tag }}"
+          if ([string]::IsNullOrWhiteSpace($rawTag)) {
+            $rawTag = "${{ github.ref_name }}"
+          }
+          $ver = $rawTag.TrimStart('v', 'V')
+          Write-Output "tag=$rawTag" >> $env:GITHUB_OUTPUT
+          Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Building tag=$rawTag (Version=$ver)"
+
+      - name: Build Nova.App & nova-cli (Framework-dependent OTA package)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          dotnet build src/Nova.App/Nova.csproj -c Release -r win-x64 --no-self-contained -p:Version=$v -p:InformationalVersion=$v
+          dotnet build src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --no-self-contained -p:Version=$v -p:InformationalVersion=$v
+
+          New-Item -ItemType Directory -Force -Path artifact-ota | Out-Null
+          Copy-Item "src/Nova.App/bin/Release/net8.0-windows/win-x64/Nova.*" artifact-ota/ -Force
+          Copy-Item "src/Nova.App/bin/Release/net8.0-windows/win-x64/Nova.Core.*" artifact-ota/ -Force
+          Copy-Item "src/Nova.Cli/bin/Release/net8.0/win-x64/nova-cli.*" artifact-ota/ -Force
+
+          Compress-Archive -Path "artifact-ota/*" -DestinationPath "nova-bin-win-x64.zip" -Force
+
+      - name: Publish Self-Contained Portable Bundle (Zero .NET install required for friends)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path "portable/Nova/bin" | Out-Null
+          New-Item -ItemType Directory -Force -Path "portable/Nova/instances" | Out-Null
+          New-Item -ItemType Directory -Force -Path "portable/Nova/versions" | Out-Null
+          New-Item -ItemType Directory -Force -Path "portable/Nova/logs" | Out-Null
+
+          dotnet publish src/Nova.App/Nova.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$v -p:InformationalVersion=$v -o "portable/Nova/bin"
+          dotnet publish src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:Version=$v -p:InformationalVersion=$v -o "portable/Nova/bin"
+
+          # Create handy root shortcut script
+          "@echo off`r`nstart `"`" `"%~dp0bin\Nova.exe`"" | Set-Content -Path "portable/Nova/Start Nova.bat" -Encoding ASCII
+          Compress-Archive -Path "portable/Nova" -DestinationPath "Nova-Portable-Full-win-x64.zip" -Force
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Nova Workbench ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            nova-bin-win-x64.zip
+            Nova-Portable-Full-win-x64.zip
