@@ -105,6 +105,77 @@ static class SecurityRegression
         }
         await using var server = new DownloadFixture();
         string remoteHash = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes("response"))).ToLowerInvariant();
+        string pinDir = Path.Combine(sandbox, "mod-pins"); Directory.CreateDirectory(pinDir);
+        File.WriteAllText(Path.Combine(pinDir, "pin.jar"), "old mod content");
+        ModPinStore.SetPinned(pinDir, "pin.jar", true);
+        Check(ModPinStore.IsPinned(pinDir, "pin.jar") && ModPinStore.IsPinned(pinDir, "pin.jar.disabled"), "pin persists across enabled and disabled names");
+        var pinCandidate = new ModUpdateCandidate("pin.jar", true, "project", "2", "new.jar", server.Url, remoteHash, 8, Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes("old mod content"))));
+        try { await ModUpdater.ApplyUpdateAsync(pinDir, pinCandidate); throw new Exception("FAIL pinned update applied"); } catch (IOException) { Console.WriteLine("PASS pinned mod update refused"); }
+        Check((await ModUpdater.CheckUpdatesAsync(pinDir, "1.20.1", "forge")).Count == 0, "pinned mod skipped during update check");
+        ModPinStore.SetPinned(pinDir, "pin.jar", false);
+        Check(!ModPinStore.IsPinned(pinDir, "pin.jar"), "unpin persists");
+        try { ModPinStore.SetPinned(pinDir, "../outside.jar", true); throw new Exception("FAIL unsafe pin"); } catch (InvalidDataException) { Console.WriteLine("PASS invalid pin filename rejected"); }
+        string snapDir = Path.Combine(sandbox, "mod-snapshot"); Directory.CreateDirectory(snapDir);
+        File.WriteAllText(Path.Combine(snapDir, "a.jar"), "version-a");
+        File.WriteAllText(Path.Combine(snapDir, "b.jar.disabled"), "version-b");
+        File.WriteAllText(Path.Combine(snapDir, "notes.txt"), "not a mod");
+        string snap = await ModSnapshot.CreateAsync(snapDir);
+        Check(File.ReadAllText(Path.Combine(snap, "files", "a.jar")) == "version-a" && File.ReadAllText(Path.Combine(snap, "files", "b.jar.disabled")) == "version-b", "snapshot preserves enabled and disabled mod files");
+        Check(!File.Exists(Path.Combine(snap, "files", "notes.txt")) && File.ReadAllText(Path.Combine(snap, "manifest.json")).Contains("Sha256"), "snapshot records SHA-256 and excludes non-mod data");
+        File.WriteAllText(Path.Combine(snapDir, "a.jar"), "changed after snapshot");
+        Check(File.ReadAllText(Path.Combine(snap, "files", "a.jar")) == "version-a", "snapshot is independent of active mod changes");
+        string modTest = Path.Combine(sandbox, "mod-update"); Directory.CreateDirectory(modTest);
+        File.WriteAllText(Path.Combine(modTest, "old.jar"), "old mod content");
+        string oldHash = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes("old mod content")));
+        var candidate = new ModUpdateCandidate("old.jar", true, "project", "2", "new.jar", server.Url, remoteHash, 8, oldHash);
+        try { await ModUpdater.ApplyUpdateAsync(modTest, candidate with { NewFileName="../evil.jar" }); throw new Exception("FAIL unsafe filename"); } catch (InvalidDataException) { Console.WriteLine("PASS mod update filename traversal rejected"); }
+        try { await ModUpdater.ApplyUpdateAsync(modTest, candidate with { Sha1=null }); throw new Exception("FAIL missing checksum"); } catch (InvalidDataException) { Console.WriteLine("PASS mod update requires checksum"); }
+        File.WriteAllText(Path.Combine(modTest, "new.jar"), "unrelated");
+        try { await ModUpdater.ApplyUpdateAsync(modTest, candidate); throw new Exception("FAIL update overwrites unrelated file"); } catch (IOException) { Console.WriteLine("PASS mod update filename collision rejected"); }
+        Check(File.ReadAllText(Path.Combine(modTest, "new.jar")) == "unrelated" && File.ReadAllText(Path.Combine(modTest, "old.jar")) == "old mod content", "collision preserves both files");
+        File.Delete(Path.Combine(modTest, "new.jar"));
+        try { await ModUpdater.ApplyUpdateAsync(modTest, candidate with { CurrentSha1=new string('0',40) }); throw new Exception("FAIL stale mod accepted"); } catch (IOException) { Console.WriteLine("PASS changed original mod rejected"); }
+        await ModUpdater.ApplyUpdateAsync(modTest, candidate);
+        string backupRoot = Path.Combine(modTest, ".nova-update-backups");
+        string backup = Directory.GetDirectories(backupRoot).Single();
+        Check(File.ReadAllText(Path.Combine(backup, "old.jar")) == "old mod content" && File.Exists(Path.Combine(backup, "backup.json")), "mod update retains verified original and metadata");
+        Check(!File.Exists(Path.Combine(modTest, "old.jar")) && File.ReadAllText(Path.Combine(modTest, "new.jar")) == "response", "mod update applies verified new file");
+        string manifest = Path.Combine(backup, "backup.json");
+        File.WriteAllText(Path.Combine(modTest, "new.jar"), "changed after update");
+        try { await ModUpdater.RestoreBackupAsync(modTest, manifest); throw new Exception("FAIL changed replacement restored"); } catch (IOException) { Console.WriteLine("PASS rollback refuses changed replacement"); }
+        Check(File.ReadAllText(Path.Combine(modTest, "new.jar")) == "changed after update", "rollback preserves changed mod");
+        File.WriteAllText(Path.Combine(modTest, "new.jar"), "response");
+        File.WriteAllText(Path.Combine(modTest, "old.jar"), "unrelated");
+        try { await ModUpdater.RestoreBackupAsync(modTest, manifest); throw new Exception("FAIL rollback overwrites original path"); } catch (IOException) { Console.WriteLine("PASS rollback refuses filename collision"); }
+        File.Delete(Path.Combine(modTest, "old.jar"));
+        await ModUpdater.RestoreBackupAsync(modTest, manifest);
+        Check(File.ReadAllText(Path.Combine(modTest, "old.jar")) == "old mod content" && !File.Exists(Path.Combine(modTest, "new.jar")) && Directory.GetFiles(backup, "replacement-*.data").Length == 1, "rollback restores original and keeps replacement");
+        try { await ModUpdater.RestoreBackupAsync(modTest, Path.Combine(sandbox, "backup.json")); throw new Exception("FAIL unrelated backup accepted"); } catch (InvalidDataException) { Console.WriteLine("PASS rollback rejects unrelated manifest"); }
+
+        string disabled = Path.Combine(sandbox, "mod-disabled"); Directory.CreateDirectory(disabled);
+        File.WriteAllText(Path.Combine(disabled, "old.jar.disabled"), "old mod content");
+        await ModUpdater.ApplyUpdateAsync(disabled, candidate with { CurrentFileName="old.jar.disabled", WasEnabled=false });
+        Check(File.ReadAllText(Path.Combine(disabled, "new.jar.disabled")) == "response", "mod update preserves disabled state");
+        string sameName = Path.Combine(sandbox, "mod-same-name"); Directory.CreateDirectory(sameName);
+        File.WriteAllText(Path.Combine(sameName, "old.jar"), "old mod content");
+        await ModUpdater.ApplyUpdateAsync(sameName, candidate with { NewFileName="old.jar" });
+        string sameBackup = Directory.GetDirectories(Path.Combine(sameName, ".nova-update-backups")).Single();
+        string savedOriginal = Path.Combine(sameBackup, "old.jar");
+        File.WriteAllText(savedOriginal, "corrupt");
+        try { await ModUpdater.RestoreBackupAsync(sameName, Path.Combine(sameBackup, "backup.json")); throw new Exception("FAIL corrupt backup restored"); } catch (IOException) { Console.WriteLine("PASS corrupt mod backup rejected"); }
+        Check(File.ReadAllText(Path.Combine(sameName, "old.jar")) == "response", "corrupt backup leaves updated mod untouched");
+        File.WriteAllText(savedOriginal, "old mod content");
+        await ModUpdater.RestoreBackupAsync(sameName, Path.Combine(sameBackup, "backup.json"));
+        Check(File.ReadAllText(Path.Combine(sameName, "old.jar")) == "old mod content", "same-name mod update rollback");
+        string concurrent = Path.Combine(sandbox, "mod-concurrent"); Directory.CreateDirectory(concurrent);
+        File.WriteAllText(Path.Combine(concurrent, "old.jar"), "old mod content");
+        Task firstModUpdate = ModUpdater.ApplyUpdateAsync(concurrent, candidate);
+        await Task.Delay(60);
+        try { await ModUpdater.ApplyUpdateAsync(concurrent, candidate); throw new Exception("FAIL concurrent mod update"); } catch (IOException) { Console.WriteLine("PASS concurrent mod update refused"); }
+        await firstModUpdate;
+        Check(File.ReadAllText(Path.Combine(concurrent, "new.jar")) == "response", "first mod update completes under lock");
+
+
         string goodIndex = JsonSerializer.Serialize(new { name="modrinth-good", files=new[] { new { path="mods/test.jar", fileSize=8, hashes=new { sha1=remoteHash }, downloads=new[] { server.Url } } } });
         string goodModrinth = Zip(sandbox, ("modrinth.index.json", goodIndex), ("overrides/config/good.txt", "okay"));
         var importedModrinth = await PackImporter.ImportAsync(goodModrinth, paths);

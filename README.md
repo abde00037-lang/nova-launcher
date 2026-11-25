@@ -37,7 +37,21 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.6
+## Latest update — v2.1.7
+
+- Pin a mod in **Installed Mods** to exclude its filename from Nova's update checks and installs. Pinning also applies when a mod is enabled or disabled; it does not control external tools or renamed files.
+- Modrinth changelogs, when provided, are shown before individual or bulk updates. Review compatibility with your server and modpack; a compatible Minecraft version and loader do not guarantee compatibility.
+- Before bulk updating, Nova saves a verified copy of top-level mod files under `mods/.nova-mod-snapshots/`. Each changed mod also gets a backup under `mods/.nova-update-backups/`. **RESTORE MOD** selects one backup's `backup.json`, verifies the replacement has not changed, and keeps a copy of that replacement. Restore one mod at a time; full-snapshot recovery is manual. These backups do not include worlds or configuration.
+- CurseForge API keys are encrypted for the current Windows user using DPAPI. A readable legacy key is migrated on successful save; older plaintext backups are not automatically cleaned. A copied installation may need the key re-entered under another Windows user or PC.
+
+Back up the entire instance and worlds before updating. Snapshots and rollback are best-effort, not an atomic filesystem snapshot or a guarantee against every failure. The OTA checksum is published alongside the package, not an independent signature; binaries are not code-signed.
+
+[Download the latest release](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [Full changelog](CHANGELOG.md)
+
+---
+
+## Previous update — v2.1.6
+
 
 - Interrupted downloads can resume; the completed update package is checked against SHA-256.
 - Files are staged and verified before installation; if copying fails, the installer attempts to restore replaced files and reports the result.

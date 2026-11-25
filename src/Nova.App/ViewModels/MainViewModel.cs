@@ -1345,11 +1345,13 @@ public sealed partial class MainViewModel : ObservableObject
 		set
 		{
 			Settings.CurseForgeKey = (string.IsNullOrWhiteSpace(value) ? null : value.Trim());
-			Settings.Save(Paths);
+			CurseForgeKeySaveFailed = !Settings.Save(Paths);
 			Raise("CurseForgeKey");
 			Raise("CurseForgeConfigured");
 		}
 	}
+
+	public bool CurseForgeKeySaveFailed { get; private set; }
 
 	public bool CurseForgeConfigured => !string.IsNullOrWhiteSpace(Settings.CurseForgeKey);
 
@@ -1720,7 +1722,10 @@ public sealed partial class MainViewModel : ObservableObject
 				catch
 				{
 				}
-				return new ModRowVm(mod.FileName, mod.Name ?? ModManager.DisplayName(mod.FileName), (mod.ModId ?? "?") + "  ·  " + (mod.Version ?? "?"), mod.Enabled, sizeBytes, ToggleMod);
+				var row = new ModRowVm(mod.FileName, mod.Name ?? ModManager.DisplayName(mod.FileName), (mod.ModId ?? "?") + "  ·  " + (mod.Version ?? "?"), mod.Enabled, sizeBytes, ToggleMod);
+				try { row.SetPinned(ModPinStore.IsPinned(modsDir, mod.FileName)); }
+				catch { row.SetPinned(true); } // Fail closed if the pin store cannot be inspected.
+				return row;
 			}).ToList();
 			RunOnUi(() =>
 			{
@@ -1880,6 +1885,7 @@ public sealed partial class MainViewModel : ObservableObject
 			Dictionary<string, ModUpdateCandidate> found = await Task.Run(() => ModUpdater.CheckUpdatesAsync(modsDir, mc, loader, log).GetAwaiter().GetResult());
 			RunOnUi(() =>
 			{
+				if (Selected != selected) { ModsMetaStatus = "instance changed; check updates again"; return; }
 				int matched = 0;
 				foreach (ModRowVm mod in _allMods)
 				{
@@ -1894,7 +1900,7 @@ public sealed partial class MainViewModel : ObservableObject
 					}
 				}
 				PendingModUpdatesCount = matched;
-				ModsMetaStatus = ((matched == 0) ? "all mods up to date" : $"{matched} update(s) ready");
+				ModsMetaStatus = ((matched == 0) ? "no eligible Modrinth updates found" : $"{matched} update(s) ready");
 				FlushConsole();
 			});
 		}
@@ -1910,13 +1916,13 @@ public sealed partial class MainViewModel : ObservableObject
 		}
 	}
 
-	public async Task UpdateSingleModAsync(ModRowVm row)
+	public async Task<bool> UpdateSingleModAsync(ModRowVm row)
 	{
 		InstanceVm? selected = Selected;
 		ModUpdateCandidate? cand = row?.PendingUpdate;
 		if (selected == null || row == null || cand == null || row.IsUpdating)
 		{
-			return;
+			return false;
 		}
 		row.IsUpdating = true;
 		string modsDir = Path.Combine(selected.GameDirectory, "mods");
@@ -1936,16 +1942,64 @@ public sealed partial class MainViewModel : ObservableObject
 			PendingModUpdatesCount = Enumerable.Count(_allMods, (ModRowVm m) => m.HasUpdate);
 			ModsMetaStatus = ((PendingModUpdatesCount == 0) ? "all mods updated" : $"{PendingModUpdatesCount} update(s) remaining");
 			AppendConsole("OK", $"updated {row.DisplayName} → {newFile}");
+			return true;
 		}
 		catch (Exception ex)
 		{
 			AppendConsole("ERROR", $"update failed for {row.DisplayName}: {ex.Message}");
+			return false;
 		}
 		finally
 		{
 			row.IsUpdating = false;
 			FlushConsole();
 		}
+	}
+
+	public void ToggleModPin(ModRowVm row)
+	{
+		InstanceVm instance = Selected ?? throw new InvalidOperationException("Select an instance first.");
+		if (HasActiveModOperations) throw new InvalidOperationException("Wait for the current mod operation to finish.");
+		bool pinned = !row.IsPinned;
+		ModPinStore.SetPinned(Path.Combine(instance.GameDirectory, "mods"), row.FileName, pinned);
+		row.SetPinned(pinned);
+		if (pinned) row.SetUpdate(null);
+		PendingModUpdatesCount = _allMods.Count(m => m.HasUpdate);
+		ModsMetaStatus = pinned ? "mod pinned; Nova will skip it" : "mod unpinned; check updates again";
+	}
+
+	public string ReviewModUpdate(ModUpdateCandidate candidate)
+	{
+		string notes = string.IsNullOrWhiteSpace(candidate.Changelog) ? "No changelog provided by Modrinth." : candidate.Changelog;
+		return $"{candidate.CurrentFileName} → {candidate.NewFileName} ({candidate.LatestVersionNumber})\n{notes}";
+	}
+
+	public string ReviewAllModUpdates()
+	{
+		var text = new System.Text.StringBuilder();
+		foreach (ModUpdateCandidate candidate in _allMods.Where(m => m.HasUpdate && !m.IsUpdating).Select(m => m.PendingUpdate!))
+		{
+			string entry = ReviewModUpdate(candidate);
+			if (text.Length + entry.Length > 150000) { text.Append("\n[Further changelogs omitted: review remaining mods individually.]\n"); break; }
+			if (text.Length > 0) text.Append("\n\n---\n\n");
+			text.Append(entry);
+		}
+		return text.ToString();
+	}
+
+	public bool HasActiveModOperations => IsModUpdateBusy || _allMods.Any(m => m.IsUpdating);
+
+	public async Task RestoreModBackupAsync(InstanceVm instance, string manifest)
+	{
+		if (Selected != instance || HasActiveModOperations || IsGameRunning)
+			throw new InvalidOperationException("Instance or game state changed; try again after ongoing operations finish.");
+		IsModUpdateBusy = true;
+		try
+		{
+			await ModUpdater.RestoreBackupAsync(Path.Combine(instance.GameDirectory, "mods"), manifest);
+			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
+		}
+		finally { IsModUpdateBusy = false; }
 	}
 
 	public async Task UpdateAllModsAsync()
@@ -1963,19 +2017,34 @@ public sealed partial class MainViewModel : ObservableObject
 		IsModUpdateBusy = true;
 		try
 		{
+			ModsMetaStatus = "creating verified mod snapshot…";
+			string snapshot;
+			try { snapshot = await ModSnapshot.CreateAsync(Path.Combine(selected.GameDirectory, "mods")); }
+			catch (Exception ex) { ModsMetaStatus = "snapshot failed; no mods updated"; AppendConsole("ERROR", "mod snapshot failed: " + ex.Message); FlushConsole(); return; }
+			AppendConsole("INFO", "mod snapshot: " + snapshot);
+			if (Selected != selected || IsGameRunning)
+			{
+				ModsMetaStatus = "instance or game state changed; no mods updated";
+				return;
+			}
 			int done = 0;
+			int failed = 0;
+			int succeeded = 0;
 			foreach (ModRowVm row in targets)
 			{
+				if (Selected != selected) { failed += targets.Count - done; break; }
 				done++;
 				ModsMetaStatus = $"updating {done}/{targets.Count}: {row.DisplayName}…";
-				await UpdateSingleModAsync(row);
+				if (await UpdateSingleModAsync(row)) succeeded++; else failed++;
 			}
-			await RefreshAsync();
-			if (Selected != null)
+			if (Selected == selected)
 			{
-				await LoadInstanceDetailsAsync(Selected);
+				await RefreshAsync();
+				if (Selected == selected) await LoadInstanceDetailsAsync(selected);
 			}
-			ModsMetaStatus = "all updates installed";
+			ModsMetaStatus = failed == 0 ? $"{done} update(s) installed" : $"{succeeded} installed, {failed} failed or skipped; see log";
+			AppendConsole(failed == 0 ? "OK" : "ERROR", ModsMetaStatus);
+			FlushConsole();
 		}
 		finally
 		{

@@ -101,7 +101,9 @@ public partial class SettingsView : UserControl
 		AccentList.SelectedIndex = ((num >= 0) ? num : 0);
 		_building = false;
 		CurseKeyBox.Text = Mask(viewModel.CurseForgeKey);
-		KeyStatus.Text = (viewModel.CurseForgeConfigured ? "key saved · CurseForge catalog unlocked" : "Modrinth active · CurseForge optional");
+		KeyStatus.Text = viewModel.Settings.CurseForgeKeyUnlockFailed ? "key could not be unlocked for this Windows user; enter it again" :
+			viewModel.Settings.CurseForgeKeyNeedsSave ? "key could not be protected and saved; check permissions" :
+			(viewModel.CurseForgeConfigured ? "key saved · CurseForge catalog unlocked" : "Modrinth active · CurseForge optional");
 		MsClientBox.Text = viewModel.MicrosoftClientId;
 		MsClientStatus.Text = (MicrosoftAuth.LooksLikeClientId(viewModel.MicrosoftClientId) ? "client id saved · Microsoft OAuth2 enabled" : "not configured · using local identities");
 		InstanceConfig? instanceConfig = viewModel.Selected?.Config;
@@ -130,13 +132,7 @@ public partial class SettingsView : UserControl
 		{
 			return "";
 		}
-		if (key.Length <= 14)
-		{
-			return key;
-		}
-		string prefix = key.Substring(0, 8);
-		string dots = new string(MaskChar, 12);
-		return prefix + dots + key.Substring(key.Length - 4);
+		return new string(MaskChar, 12);
 	}
 
 	private void SaveKey_Click(object sender, RoutedEventArgs e)
@@ -150,7 +146,8 @@ public partial class SettingsView : UserControl
 		if (viewModel != null)
 		{
 			viewModel.CurseForgeKey = CurseKeyBox.Text;
-			KeyStatus.Text = (viewModel.CurseForgeConfigured ? "key saved · CurseForge catalog unlocked" : "Modrinth active · CurseForge optional");
+			KeyStatus.Text = viewModel.CurseForgeKeySaveFailed ? "could not protect or save key; check permissions" :
+				(viewModel.CurseForgeConfigured ? "key saved · CurseForge catalog unlocked" : "Modrinth active · CurseForge optional");
 		}
 	}
 

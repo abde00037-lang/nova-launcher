@@ -58,6 +58,7 @@
                 IsEnabled="{Binding CanUpdateAllMods}"
                 Visibility="{Binding HasPendingModUpdates, Converter={StaticResource BoolVis}}"
                 Click="UpdateAll_Click" />
+        <Button Content="RESTORE MOD" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" ToolTip="Restore one saved mod version from its backup.json" Click="RestoreMod_Click" />
         <Button Content="FULL CATALOG" Style="{StaticResource PrimaryButton}" FontSize="10.5" Padding="13,8" Margin="6,0,0,0" Click="OpenStore_Click" />
         <Button Content="MODS DIR" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" Click="OpenFolder_Click" />
       </WrapPanel>
@@ -192,7 +193,8 @@
                             Visibility="{Binding HasUpdate, Converter={StaticResource BoolVis}}"
                             Click="UpdateMod_Click" />
 
-                    <TextBlock Grid.Column="3" Text="{Binding StatusLabel}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <Button Grid.Column="3" Content="{Binding PinLabel}" Style="{StaticResource GhostButton}" FontSize="10" Padding="9,6" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Pin this filename so Nova skips updates; toggle again to unpin" Tag="{Binding}" Click="PinMod_Click" />
+
 
                     <ToggleButton Grid.Column="4" Style="{StaticResource Switch}" VerticalAlignment="Center" IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
 

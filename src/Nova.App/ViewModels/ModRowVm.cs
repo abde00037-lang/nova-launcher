@@ -13,6 +13,11 @@ public sealed class ModRowVm : ObservableObject
 
 	private bool _isUpdating;
 
+	private bool _isPinned;
+	public bool IsPinned => _isPinned;
+	public string PinLabel => _isPinned ? "UNPIN" : "PIN";
+	public void SetPinned(bool pinned) { _isPinned = pinned; Raise("IsPinned"); Raise("PinLabel"); }
+
 	private readonly string _baseName;
 
 	private string? _title;

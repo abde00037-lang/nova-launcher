@@ -34,6 +34,20 @@ try
     try { LauncherUpdater.ExpectedSha256(h + "  nova-bin-win-x64.zip\n" + h + "  nova-bin-win-x64.zip", "nova-bin-win-x64.zip"); throw new Exception("accepted duplicate hash"); } catch (InvalidDataException) { Console.WriteLine("PASS duplicate checksum rejected"); }
     if (OperatingSystem.IsWindows())
     {
+        string settingsRoot = Path.Combine(root, "settings-migration"); Directory.CreateDirectory(settingsRoot);
+        var settingsPaths = new LauncherPaths(settingsRoot);
+        string settingsFile = Path.Combine(settingsRoot, "settings.json");
+        File.WriteAllText(settingsFile, "{\"curseForgeKey\":\"example-secret-test\",\"accent\":\"Blue\"}");
+        var settings = LauncherSettings.Load(settingsPaths);
+        Check(settings.CurseForgeKey == "example-secret-test" && settings.Accent == "Blue", "legacy CurseForge key read");
+        string settingsJson = File.ReadAllText(settingsFile);
+        Check(!settingsJson.Contains("example-secret-test") && !settingsJson.Contains("\"curseForgeKey\"") && settingsJson.Contains("protectedCurseForgeKey"), "legacy CurseForge key migrated to DPAPI");
+        Check(LauncherSettings.Load(settingsPaths).CurseForgeKey == "example-secret-test", "protected CurseForge key round trip");
+        settings.CurseForgeKey = null; settings.Save(settingsPaths);
+        Check(!File.ReadAllText(settingsFile).Contains("protectedCurseForgeKey"), "cleared CurseForge key removed");
+        File.WriteAllText(settingsFile, "{\"protectedCurseForgeKey\":\"invalid-data\",\"accent\":\"Blue\"}");
+        var locked = LauncherSettings.Load(settingsPaths); locked.Accent = "Red"; locked.Save(settingsPaths);
+        Check(File.ReadAllText(settingsFile).Contains("invalid-data"), "unavailable protected key preserved on settings save");
         var accounts = new AccountStore(paths);
         var account = new NovaAccount { Id = "msa-faketest", Name = "FakeTest", Kind = AccountKind.Microsoft, AccessToken = "test-only-access-token", RefreshToken = "test-only-refresh-token" };
         string accountsDir = Path.Combine(root, "accounts"); Directory.CreateDirectory(accountsDir);

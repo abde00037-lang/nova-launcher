@@ -651,9 +651,16 @@ internal static class Program
 			Header((apply ? "Update mods - " : "Check mod updates - ") + instanceConfig.Name);
 			Progress<string> log = new Progress<string>((string l) => Console.WriteLine("  " + l));
 			Dictionary<string, ModUpdateCandidate> updates = ModUpdater.CheckUpdatesAsync(modsDirectory, ModStore.McVersionOf(instanceConfig.VersionId), ModStore.LoaderOf(instanceConfig.VersionId), log).GetAwaiter().GetResult();
+			if (apply && updates.Count > 0)
+			{
+				Console.WriteLine("  Creating a verified snapshot of mod files before updates...");
+				string snapshot = ModSnapshot.CreateAsync(modsDirectory).GetAwaiter().GetResult();
+				Row("mod snapshot", snapshot);
+			}
 			foreach (ModUpdateCandidate cand in updates.Values)
 			{
 				Console.WriteLine($"  • {cand.CurrentFileName} -> {cand.NewFileName} ({cand.LatestVersionNumber})");
+				Console.WriteLine("    changelog: " + (string.IsNullOrWhiteSpace(cand.Changelog) ? "not provided by Modrinth" : cand.Changelog));
 				if (apply)
 				{
 					ModUpdater.ApplyUpdateAsync(modsDirectory, cand).GetAwaiter().GetResult();

@@ -2,6 +2,12 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.7]
+- Pin individual mod filenames per instance and preview Modrinth changelogs before updates.
+- Snapshot top-level mod files before bulk updates, verify individual backups, and restore an updated mod only if its recorded replacement is unchanged.
+- Prevent conflicting mod updates and accidental filename overwrites; report partial failures accurately.
+- Protect CurseForge API keys with Windows DPAPI and migrate legacy plaintext on successful save.
+
 ## [v2.1.6] — 2026-11-25
 - Resume interrupted update downloads and verify the complete package and runtime.
 - Back up and verify replaced files; report installation failures and attempt rollback.

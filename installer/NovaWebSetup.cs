@@ -15,8 +15,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("Nova Workbench Web Installer")]
 [assembly: AssemblyDescription("Installs or updates Nova Workbench to the latest GitHub release")]
 [assembly: AssemblyProduct("Nova Workbench")]
-[assembly: AssemblyVersion("2.1.6.0")]
-[assembly: AssemblyFileVersion("2.1.6.0")]
+[assembly: AssemblyVersion("2.1.7.0")]
+[assembly: AssemblyFileVersion("2.1.7.0")]
 
 namespace NovaSetup
 {
