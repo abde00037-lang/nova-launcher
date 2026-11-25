@@ -958,7 +958,7 @@ internal static class Program
 			Console.WriteLine();
 			Write("  next: nova doctor " + result.InstanceId + "   (installs the version, libraries and assets)", ConsoleColor.Green);
 			Console.WriteLine();
-			return (result.FilesFailed != 0) ? 1 : 0;
+			return (result.FilesFailed != 0 || result.SetupFailed) ? 1 : 0;
 		}
 		case "export":
 		{

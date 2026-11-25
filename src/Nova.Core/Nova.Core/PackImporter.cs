@@ -23,7 +23,7 @@ public static class PackImporter
 		Http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/0.2 (minecraft modpack launcher)");
 	}
 
-	public static async Task<PackImportResult> ImportAsync(string zipPath, LauncherPaths paths, string? instanceId = null, string? displayName = null, IProgress<string>? log = null, CancellationToken ct = default(CancellationToken), string? curseForgeKey = null, ArchiveLimits? limits = null)
+	public static async Task<PackImportResult> ImportAsync(string zipPath, LauncherPaths paths, string? instanceId = null, string? displayName = null, IProgress<string>? log = null, CancellationToken ct = default(CancellationToken), string? curseForgeKey = null, ArchiveLimits? limits = null, IProgress<PackImportProgress>? progress = null)
 	{
 		limits ??= ArchiveLimits.Default;
 		PackInfo info = PackInspector.Inspect(zipPath, limits);
@@ -71,10 +71,10 @@ public static class PackImporter
 			switch (info.Format)
 			{
 			case PackFormat.Modrinth:
-				await ImportModrinthAsync(zip, gameDir, result, log, ct, limits, budget).ConfigureAwait(continueOnCapturedContext: false);
+				await ImportModrinthAsync(zip, staging, gameDir, result, log, ct, limits, budget, progress).ConfigureAwait(continueOnCapturedContext: false);
 				break;
 			case PackFormat.CurseForge:
-				await ImportCurseForgeAsync(zip, staging, gameDir, effectiveKey, result, log, ct, limits, budget).ConfigureAwait(continueOnCapturedContext: false);
+				await ImportCurseForgeAsync(zip, staging, gameDir, effectiveKey, result, log, ct, limits, budget, progress).ConfigureAwait(continueOnCapturedContext: false);
 				break;
 			default:
 				ExtractFolder(zip, gameDir, "", result, limits, budget, ct, new string[1] { "nova-pack.json" });
@@ -82,7 +82,7 @@ public static class PackImporter
 			}
 		}
 		Directory.CreateDirectory(gameDir);
-		string resolvedVersionId = await EnsurePackLoaderAsync(info, paths, log, ct).ConfigureAwait(continueOnCapturedContext: false);
+		string resolvedVersionId = await EnsurePackLoaderAsync(info, paths, result, log, ct).ConfigureAwait(continueOnCapturedContext: false);
 		string modsDir = Path.Combine(gameDir, "mods");
 		int num = ModManager.CountInstalled(modsDir);
 		string mcForJava = (string.IsNullOrWhiteSpace(info.McVersion) ? ModStore.McVersionOf(resolvedVersionId) : info.McVersion);
@@ -93,8 +93,11 @@ public static class PackImporter
 			{
 				java = await JavaProvisioner.EnsureAsync(paths, VersionResolver.GuessJavaMajor(mcForJava), log, ct).ConfigureAwait(continueOnCapturedContext: false);
 			}
-			catch
+			catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+			catch (Exception ex)
 			{
+				result.Notes.Add("Java setup failed: " + ex.Message);
+				result.SetupFailed = true;
 			}
 		}
 		AccountStore accountStore = new AccountStore(paths);
@@ -130,7 +133,7 @@ public static class PackImporter
 		}
 	}
 
-	private static async Task<string> EnsurePackLoaderAsync(PackInfo info, LauncherPaths paths, IProgress<string>? log, CancellationToken ct)
+	private static async Task<string> EnsurePackLoaderAsync(PackInfo info, LauncherPaths paths, PackImportResult result, IProgress<string>? log, CancellationToken ct)
 	{
 		string built = BuildVersionId(info);
 		if (string.IsNullOrWhiteSpace(info.McVersion))
@@ -154,14 +157,17 @@ public static class PackImporter
 			}
 			await MojangMeta.InstallAsync(info.McVersion, paths, log, ct).ConfigureAwait(continueOnCapturedContext: false);
 		}
+		catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 		catch (Exception ex)
 		{
-			log?.Report("loader setup note: " + ex.Message);
+			result.SetupFailed = true;
+			result.Notes.Add("Loader setup failed: " + ex.Message);
+			log?.Report("loader setup failed: " + ex.Message);
 		}
 		return built;
 	}
 
-	private static async Task ImportModrinthAsync(ZipArchive zip, string gameDir, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget)
+	private static async Task ImportModrinthAsync(ZipArchive zip, string instanceFolder, string gameDir, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget, IProgress<PackImportProgress>? progress)
 	{
 		ModrinthIndex modrinthIndex = PackInspector.ReadJson<ModrinthIndex>(zip.GetEntry("modrinth.index.json")!, limits.MaxManifestBytes) ?? new ModrinthIndex();
 		List<ModrinthFile> files = (modrinthIndex.Files ?? new List<ModrinthFile>()).Where((ModrinthFile f) => f.IsClientFile).ToList();
@@ -185,14 +191,29 @@ public static class PackImporter
 		using Downloader downloader = new Downloader(8);
 		int done = 0;
 		object sync = new object();
+		long lastProgressTick = 0;
+		downloader.OnBytesRead = total =>
+		{
+			long now = Environment.TickCount64;
+			long previous = Interlocked.Read(ref lastProgressTick);
+			if (now - previous < 500 || Interlocked.CompareExchange(ref lastProgressTick, now, previous) != previous) return;
+			lock (sync) progress?.Report(new PackImportProgress(done, files.Count, result.FilesFailed, total));
+		};
+		var missingDetails = new Dictionary<string, string>();
 		IEnumerable<Task> tasks = files.Select(async delegate(ModrinthFile file)
 		{
 			ct.ThrowIfCancellationRequested();
 			string target = SafePath.ResolveWithin(gameDir, file.Path);
-			FetchResult fetchResult = await downloader.EnsureAsync(target, file.Url, file.Sha1, ct, maxBytes: file.FileSize).ConfigureAwait(continueOnCapturedContext: false);
-			int current = Interlocked.Increment(ref done);
+			FetchResult fetchResult = FetchResult.Failed;
+			string error = "no download source";
+			foreach (string url in (file.Downloads ?? new List<string>()).Where(u => !string.IsNullOrWhiteSpace(u)).Distinct())
+			{
+				fetchResult = await downloader.EnsureAsync(target, url, file.Sha1, ct, maxBytes: file.FileSize, onFailure: message => error = message).ConfigureAwait(false);
+				if (fetchResult == FetchResult.Downloaded || fetchResult == FetchResult.AlreadyValid) break;
+			}
 			lock (sync)
 			{
+				int current = ++done;
 				switch (fetchResult)
 				{
 				case FetchResult.AlreadyValid:
@@ -204,24 +225,54 @@ public static class PackImporter
 				default:
 					result.FilesFailed++;
 					result.Missing.Add(file.Path);
+					missingDetails[file.Path] = error;
+					log?.Report("download failed: " + file.Path + " (" + error + ")");
 					break;
 				}
-			}
-			if (current % 10 == 0 || current == files.Count)
-			{
-				log?.Report($"downloaded {current}/{files.Count} ({downloader.BytesDownloaded / 1024 / 1024} MB)");
+				progress?.Report(new PackImportProgress(current, files.Count, result.FilesFailed, Interlocked.Read(ref downloader.BytesDownloaded)));
+				if (current % 10 == 0 || current == files.Count)
+					log?.Report($"processed {current}/{files.Count} ({result.FilesFailed} failed; {downloader.BytesDownloaded / 1024 / 1024} MB transferred)");
 			}
 		});
 		await Task.WhenAll(tasks).ConfigureAwait(continueOnCapturedContext: false);
+		// Retry failures once more without competing transfers: transient TLS and rate limits
+		// can affect only the final large files while the pack is downloading in parallel.
+		var failedFiles = files.Where(f => missingDetails.ContainsKey(f.Path) && f.Downloads?.Any(u => !string.IsNullOrWhiteSpace(u)) == true).ToList();
+		if (failedFiles.Count > 0) log?.Report($"retrying {failedFiles.Count} failed file(s) one at a time");
+		foreach (ModrinthFile file in failedFiles)
+		{
+			ct.ThrowIfCancellationRequested();
+			string target = SafePath.ResolveWithin(gameDir, file.Path);
+			string error = missingDetails[file.Path];
+			FetchResult retried = FetchResult.Failed;
+			foreach (string url in file.Downloads!.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct())
+			{
+				retried = await downloader.EnsureAsync(target, url, file.Sha1, ct, maxBytes: file.FileSize, onFailure: message => error = message).ConfigureAwait(false);
+				if (retried == FetchResult.Downloaded || retried == FetchResult.AlreadyValid) break;
+			}
+			if (retried == FetchResult.Downloaded || retried == FetchResult.AlreadyValid)
+			{
+				result.FilesFailed--;
+				if (retried == FetchResult.Downloaded) result.FilesWritten++; else result.FilesSkipped++;
+				result.Missing.Remove(file.Path);
+				missingDetails.Remove(file.Path);
+				log?.Report("retry succeeded: " + file.Path);
+			}
+			else { missingDetails[file.Path] = error; log?.Report("retry failed: " + file.Path + " (" + error + ")"); }
+			progress?.Report(new PackImportProgress(done, files.Count, result.FilesFailed, Interlocked.Read(ref downloader.BytesDownloaded)));
+		}
 		ExtractFolder(zip, gameDir, "overrides/", result, limits, budget, ct);
 		ExtractFolder(zip, gameDir, "client-overrides/", result, limits, budget, ct);
 		if (result.Missing.Count > 0)
 		{
+			Directory.CreateDirectory(instanceFolder);
+			File.WriteAllLines(Path.Combine(instanceFolder, "modrinth-missing.txt"), new[] { "# Files missing from this Modrinth pack. Retry import or download these files manually:" }.Concat(missingDetails.Select(kv => kv.Key + " — " + kv.Value)));
+			result.Notes.Add($"{result.Missing.Count} missing file(s) listed in modrinth-missing.txt");
 			log?.Report($"{result.Missing.Count} file(s) could not be downloaded: " + string.Join(", ", result.Missing.Take(5)));
 		}
 	}
 
-	private static async Task ImportCurseForgeAsync(ZipArchive zip, string instanceFolder, string gameDir, string? curseKey, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget)
+	private static async Task ImportCurseForgeAsync(ZipArchive zip, string instanceFolder, string gameDir, string? curseKey, PackImportResult result, IProgress<string>? log, CancellationToken ct, ArchiveLimits limits, ArchiveBudget budget, IProgress<PackImportProgress>? progress)
 	{
 		CurseManifest? manifest = PackInspector.ReadJson<CurseManifest>(zip.GetEntry("manifest.json")!, limits.MaxManifestBytes);
 		ExtractFolder(zip, gameDir, "overrides/", result, limits, budget, ct);
@@ -281,6 +332,7 @@ public static class PackImporter
 					}
 				}
 			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 			catch (Exception ex)
 			{
 				log?.Report("CurseForge batch lookup note: " + ex.Message);
@@ -320,6 +372,7 @@ public static class PackImporter
 						}
 					}
 				}
+				catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 				catch
 				{
 				}
@@ -332,6 +385,14 @@ public static class PackImporter
 		using Downloader downloader = new Downloader(8);
 		int done = 0;
 		object resLock = new object();
+		long lastProgressTick = 0;
+		downloader.OnBytesRead = total =>
+		{
+			long now = Environment.TickCount64;
+			long previous = Interlocked.Read(ref lastProgressTick);
+			if (now - previous < 500 || Interlocked.CompareExchange(ref lastProgressTick, now, previous) != previous) return;
+			lock (resLock) progress?.Report(new PackImportProgress(done, required.Count, result.FilesFailed, total));
+		};
 		List<string> missingIds = new List<string>();
 		await Task.WhenAll(required.Select(async delegate(CurseFile cf)
 		{
@@ -343,15 +404,16 @@ public static class PackImporter
 					result.FilesFailed++;
 					missingIds.Add($"{cf.ProjectId}:{cf.FileId}");
 					result.Missing.Add($"{cf.ProjectId}:{cf.FileId}");
+					progress?.Report(new PackImportProgress(++done, required.Count, result.FilesFailed, Interlocked.Read(ref downloader.BytesDownloaded)));
 				}
 				return;
 			}
 			if (info2.FileName.Contains('/') || info2.FileName.Contains('\\')) throw new InvalidDataException("Invalid CurseForge filename.");
 			string dest = SafePath.ResolveWithin(modsDir, info2.FileName);
 			FetchResult fr = await downloader.EnsureAsync(dest, info2.Url, info2.Sha1, ct).ConfigureAwait(continueOnCapturedContext: false);
-			int curr = Interlocked.Increment(ref done);
 			lock (resLock)
 			{
+				int curr = ++done;
 				switch (fr)
 				{
 				case FetchResult.AlreadyValid:
@@ -366,10 +428,9 @@ public static class PackImporter
 					result.Missing.Add(info2.FileName);
 					break;
 				}
-			}
-			if (curr % 10 == 0 || curr == required.Count)
-			{
-				log?.Report($"downloaded {curr}/{required.Count} CurseForge mods ({downloader.BytesDownloaded / 1024 / 1024} MB)");
+				progress?.Report(new PackImportProgress(curr, required.Count, result.FilesFailed, Interlocked.Read(ref downloader.BytesDownloaded)));
+				if (curr % 10 == 0 || curr == required.Count)
+					log?.Report($"processed {curr}/{required.Count} CurseForge mods ({result.FilesFailed} failed; {downloader.BytesDownloaded / 1024 / 1024} MB transferred)");
 			}
 		})).ConfigureAwait(continueOnCapturedContext: false);
 		if (missingIds.Count > 0)

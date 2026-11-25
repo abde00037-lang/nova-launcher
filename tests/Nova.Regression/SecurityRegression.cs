@@ -21,6 +21,13 @@ static class SecurityRegression
     }
     public static async Task Run(string root)
     {
+        var forgeOutcome = typeof(ForgeInstaller).GetMethod("CheckInstallerOutcome", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        forgeOutcome.Invoke(null, new object[] { 0, "Installer complete", true });
+        foreach (var outcome in new[] { (1, "failed", true), (0, "There was an error during installation", true), (0, "ok", false) })
+        {
+            try { forgeOutcome.Invoke(null, new object[] { outcome.Item1, outcome.Item2, outcome.Item3 }); throw new Exception("FAIL Forge failure accepted"); }
+            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is InvalidOperationException) { Console.WriteLine("PASS Forge failed installer outcome rejected"); }
+        }
         Check(!GameLogFormatter.ShouldShow("Missing sound for event foo") && GameLogFormatter.ShouldShow("[thread/ERROR] failed"), "game log filter unchanged");
         Check(GameLogFormatter.LevelOf("[thread/WARN] warning") == "WARN" && GameLogFormatter.CleanLine("[thread/INFO]: hello") == "hello", "game log formatting unchanged");
         string sandbox = Path.Combine(root, "security-tests"); Directory.CreateDirectory(sandbox);
@@ -102,6 +109,22 @@ static class SecurityRegression
         string goodModrinth = Zip(sandbox, ("modrinth.index.json", goodIndex), ("overrides/config/good.txt", "okay"));
         var importedModrinth = await PackImporter.ImportAsync(goodModrinth, paths);
         Check(File.ReadAllText(Path.Combine(importedModrinth.GameDirectory, "mods", "test.jar")) == "response" && File.ReadAllText(Path.Combine(importedModrinth.GameDirectory, "config", "good.txt")) == "okay", "normal Modrinth download and overrides");
+        var progressEvents = new List<PackImportProgress>();
+        var progress = new InlineProgress<PackImportProgress>(x => progressEvents.Add(x));
+        string mirrorIndex = JsonSerializer.Serialize(new { name="mirror-pack", files=new[] { new { path="mods/mirror.jar", fileSize=8, hashes=new { sha1=remoteHash }, downloads=new[] { server.Url + "-missing", server.Url } } } });
+        var mirror = await PackImporter.ImportAsync(Zip(sandbox, ("modrinth.index.json", mirrorIndex)), paths, progress: progress);
+        Check(mirror.FilesFailed == 0 && File.ReadAllText(Path.Combine(mirror.GameDirectory, "mods", "mirror.jar")) == "response", "Modrinth fallback source used after failure");
+        Check(progressEvents.Count >= 1 && progressEvents.Last().Completed == 1 && progressEvents.Last().Total == 1 && progressEvents.Last().Failed == 0 && progressEvents.Last().BytesTransferred >= 8, "import progress reports final processed count");
+        var retryProgress = new List<PackImportProgress>();
+        string retryIndex = JsonSerializer.Serialize(new { name="retry-pack", files=new[] { new { path="mods/retry.jar", fileSize=8, hashes=new { sha1=remoteHash }, downloads=new[] { server.Url + "-flaky" } } } });
+        var retried = await PackImporter.ImportAsync(Zip(sandbox, ("modrinth.index.json", retryIndex)), paths, progress: new InlineProgress<PackImportProgress>(x => retryProgress.Add(x)));
+        Check(retried.FilesFailed == 0 && File.ReadAllText(Path.Combine(retried.GameDirectory, "mods", "retry.jar")) == "response" && retryProgress.Any(x => x.Failed == 1) && retryProgress.Last().Failed == 0, "sequential retry recovers transient failures");
+        string badHashIndex = JsonSerializer.Serialize(new { name="hash-pack", files=new[] { new { path="mods/hash.jar", fileSize=8, hashes=new { sha1=new string('0', 40) }, downloads=new[] { server.Url } } } });
+        var badHash = await PackImporter.ImportAsync(Zip(sandbox, ("modrinth.index.json", badHashIndex)), paths);
+        Check(badHash.FilesFailed == 1 && !File.Exists(Path.Combine(badHash.GameDirectory, "mods", "hash.jar")) && File.ReadAllText(Path.Combine(Path.GetDirectoryName(badHash.GameDirectory)!, "modrinth-missing.txt")).Contains("mods/hash.jar — SHA-1 mismatch"), "missing or corrupt mod reported without installing it");
+        string absentIndex = JsonSerializer.Serialize(new { name="absent-pack", files=new[] { new { path="mods/absent.jar", fileSize=8, downloads=Array.Empty<string>() } } });
+        var absent = await PackImporter.ImportAsync(Zip(sandbox, ("modrinth.index.json", absentIndex)), paths);
+        Check(absent.FilesFailed == 1 && absent.Missing.Contains("mods/absent.jar"), "no download URL reports incomplete import");
         string lyingIndex = JsonSerializer.Serialize(new { name="modrinth-lying", files=new[] { new { path="mods/test.jar", fileSize=1, downloads=new[] { server.Url } } } });
         string lying = Zip(sandbox, ("modrinth.index.json", lyingIndex));
         try { await PackImporter.ImportAsync(lying, paths); throw new Exception("FAIL oversized Modrinth download"); }
@@ -151,7 +174,7 @@ static class SecurityRegression
 sealed class DownloadFixture : IAsyncDisposable
 {
     readonly TcpListener listener = new(IPAddress.Loopback, 0); readonly CancellationTokenSource stop = new(); readonly Task worker;
-    int active, peak, requests;
+    int active, peak, requests, flakyRequests;
     public int Requests => requests; public int Peak => peak; public string Url { get; }
     public DownloadFixture() { listener.Start(); Url = "http://127.0.0.1:" + ((IPEndPoint)listener.LocalEndpoint).Port + "/file"; worker = Serve(); }
     async Task Serve()
@@ -165,15 +188,25 @@ sealed class DownloadFixture : IAsyncDisposable
         {
             try
             {
-                string? line; do { line=await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(line));
+                string? request = await reader.ReadLineAsync(); string? line; do { line=await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(line));
                 Interlocked.Increment(ref requests); int n=Interlocked.Increment(ref active); int p;
                 do { p=peak; if (n<=p) break; } while (Interlocked.CompareExchange(ref peak,n,p)!=p);
                 await Task.Delay(250);
-                byte[] bytes=Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nresponse"); await stream.WriteAsync(bytes);
+                string response = request != null && (request.Contains("/file-missing ") || (request.Contains("/file-flaky ") && Interlocked.Increment(ref flakyRequests) <= 4))
+                    ? "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    : "HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nresponse";
+                byte[] bytes=Encoding.ASCII.GetBytes(response); await stream.WriteAsync(bytes);
                 Interlocked.Decrement(ref active);
             }
             catch (IOException) { Interlocked.Decrement(ref active); }
         }
     }
     public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await worker; stop.Dispose(); }
+}
+
+sealed class InlineProgress<T> : IProgress<T>
+{
+    private readonly Action<T> action;
+    public InlineProgress(Action<T> action) => this.action = action;
+    public void Report(T value) => action(value);
 }

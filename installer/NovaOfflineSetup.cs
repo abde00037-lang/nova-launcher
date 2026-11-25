@@ -10,10 +10,10 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Nova Workbench Full Offline Setup")]
-[assembly: AssemblyDescription("Full offline installer for Nova Workbench v2.1.4 (includes embedded .NET 8 runtime)")]
+[assembly: AssemblyDescription("Full offline installer for Nova Workbench v2.1.5 (includes embedded .NET 8 runtime)")]
 [assembly: AssemblyProduct("Nova Workbench")]
-[assembly: AssemblyVersion("2.1.4.0")]
-[assembly: AssemblyFileVersion("2.1.4.0")]
+[assembly: AssemblyVersion("2.1.5.0")]
+[assembly: AssemblyFileVersion("2.1.5.0")]
 
 namespace NovaOfflineSetup
 {
@@ -66,7 +66,7 @@ namespace NovaOfflineSetup
     internal static class OfflineInstaller
     {
         public const string ResourceName = "NovaFullPayload.zip";
-        public const string EmbeddedVersion = "v2.1.4";
+        public const string EmbeddedVersion = "v2.1.5";
 
         public static Task<string> ExtractEmbeddedPayloadAsync(
             string targetRoot,

@@ -2,6 +2,10 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.5] — 2026-11-24
+- Improved modpack download progress, retries, alternate sources, and missing-file reports.
+- Report Minecraft client and Forge installer failures rather than marking them successful.
+
 ## [v2.1.4] — 2026-11-24
 - Avoided quadratic lookup cost while skipping large Native JAR metadata lists.
 

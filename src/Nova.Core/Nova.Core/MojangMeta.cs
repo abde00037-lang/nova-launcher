@@ -104,6 +104,8 @@ public static class MojangMeta
 					progress?.Report(new DownloadProgress("Client JAR", pct, 100, doneBytes, $"client.jar · {(double)doneBytes / 1048576.0:F1} / {(double)denom / 1048576.0:F1} MB"));
 				}
 			}).ConfigureAwait(continueOnCapturedContext: false);
+			if (value != FetchResult.Downloaded && value != FetchResult.AlreadyValid)
+				throw new IOException("Minecraft client download failed: " + value + (string.IsNullOrWhiteSpace(downloader.LastError) ? "" : " — " + downloader.LastError));
 			progress?.Report(new DownloadProgress("Client JAR", 100, 100, downloader.BytesDownloaded, $"client.jar ready ({(double)client.Size / 1048576.0:F1} MB)"));
 			log?.Report($"client jar: {value} ({(double)client.Size / 1048576.0:F1} MB)");
 		}

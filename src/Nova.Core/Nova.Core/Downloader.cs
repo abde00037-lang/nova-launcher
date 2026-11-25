@@ -54,7 +54,7 @@ public sealed class Downloader : IDisposable
 		_http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/1.0");
 	}
 
-	public async Task<FetchResult> EnsureAsync(string targetPath, string? url, string? sha1, CancellationToken ct = default(CancellationToken), Action<long, long>? byteProgress = null, long? maxBytes = null)
+	public async Task<FetchResult> EnsureAsync(string targetPath, string? url, string? sha1, CancellationToken ct = default(CancellationToken), Action<long, long>? byteProgress = null, long? maxBytes = null, Action<string>? onFailure = null)
 	{
 		targetPath = Path.GetFullPath(targetPath);
 		string lockKey = OperatingSystem.IsWindows() ? targetPath.ToUpperInvariant() : targetPath;
@@ -76,7 +76,7 @@ public sealed class Downloader : IDisposable
 		await _gate.WaitAsync(ct).ConfigureAwait(continueOnCapturedContext: false);
 		try
 		{
-			for (int attempt = 1; attempt <= 3; attempt++)
+			for (int attempt = 1; attempt <= 4; attempt++)
 			{
 				string tmp = targetPath + "." + attempt + ".part";
 				try
@@ -112,14 +112,17 @@ public sealed class Downloader : IDisposable
 					if (!string.IsNullOrEmpty(sha1) && !string.Equals(await Sha1Async(tmp, ct).ConfigureAwait(continueOnCapturedContext: false), sha1, StringComparison.OrdinalIgnoreCase))
 					{
 						TryDelete(tmp);
-						return FetchResult.HashMismatch;
+						if (attempt == 4) { Interlocked.Increment(ref FilesFailed); onFailure?.Invoke("SHA-1 mismatch"); return FetchResult.HashMismatch; }
+						Interlocked.Increment(ref Retries);
+						await Task.Delay(400 * attempt, ct).ConfigureAwait(false);
+						continue;
 					}
 					File.Move(tmp, targetPath, overwrite: true);
 					Interlocked.Increment(ref FilesDownloaded);
 					return FetchResult.Downloaded;
 				}
 				catch (DownloadLimitException) { TryDelete(tmp); throw; }
-				catch (OperationCanceledException)
+				catch (OperationCanceledException) when (ct.IsCancellationRequested)
 				{
 					TryDelete(tmp);
 					throw;
@@ -127,11 +130,13 @@ public sealed class Downloader : IDisposable
 				catch (Exception ex)
 				{
 					// Hide URLs (which may contain signed query parameters) from user-visible logs.
-					LastError = ex.GetType().Name + ": " + System.Text.RegularExpressions.Regex.Replace(ex.Message, @"https?://\S+", "[URL hidden]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+					string error = ex.GetType().Name + ": " + System.Text.RegularExpressions.Regex.Replace(ex.Message, @"https?://\S+", "[URL hidden]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+					LastError = error;
 					TryDelete(tmp);
-					if (attempt == 3)
+					if (attempt == 4)
 					{
 						Interlocked.Increment(ref FilesFailed);
+						onFailure?.Invoke(error);
 						return FetchResult.Failed;
 					}
 					Interlocked.Increment(ref Retries);

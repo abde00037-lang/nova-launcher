@@ -4022,10 +4022,17 @@ public sealed partial class MainViewModel : ObservableObject
 			Progress<string> progress = new Progress<string>((string line) =>
 			{
 				AppendConsole("INFO", line);
+				StatusDetail = line;
+			});
+			Progress<PackImportProgress> transfer = new Progress<PackImportProgress>(p =>
+			{
+				StatusIndeterminate = false;
+				StatusProgress = p.Total > 0 ? 0.85 * p.Completed / p.Total : 0;
+				StatusDetail = $"Downloading pack files: {p.Completed}/{p.Total} processed · {p.Failed} failed · {p.BytesTransferred / 1024 / 1024} MB transferred";
 			});
 			LauncherPaths paths = Paths;
 			string? cfKey = Settings.CurseForgeKey;
-			PackImportResult result = await Task.Run(() => PackImporter.ImportAsync(zipPath, paths, null, null, progress, default, cfKey).GetAwaiter().GetResult());
+			PackImportResult result = await Task.Run(() => PackImporter.ImportAsync(zipPath, paths, null, null, progress, default, cfKey, progress: transfer).GetAwaiter().GetResult());
 			await RefreshAsync();
 			InstanceVm instanceVm = Instances.FirstOrDefault((InstanceVm i) => i.Id == result.InstanceId);
 			if (instanceVm != null)
@@ -4038,13 +4045,17 @@ public sealed partial class MainViewModel : ObservableObject
 			}
 			if (result.Missing.Count > 0)
 			{
-				AppendConsole("WARN", result.Missing.Count + " file(s) could not be downloaded");
+				AppendConsole("WARN", result.Missing.Count + " file(s) could not be downloaded; see the missing-files report in the instance folder");
+				foreach (string missing in result.Missing.Take(10)) AppendConsole("WARN", "missing: " + missing);
 			}
-			AppendConsole((result.FilesFailed == 0) ? "OK" : "WARN", "import finished: " + result.Summary);
+			bool incomplete = result.FilesFailed != 0 || result.SetupFailed;
+			AppendConsole(incomplete ? "WARN" : "OK", "import finished: " + result.Summary);
 			StatusIndeterminate = false;
 			StatusProgress = 1.0;
-			StatusText = "Pack imported";
-			StatusDetail = result.Name + " · " + result.Summary + " · run CHECK, then REPAIR for any missing files";
+			StatusText = incomplete ? "Pack import incomplete" : "Pack imported";
+			StatusDetail = incomplete
+				? result.Name + " · " + result.Summary + " · check the missing-files report and log"
+				: result.Name + " · " + result.Summary + " · run CHECK before playing";
 			Log("pack imported: " + result.InstanceId + " " + result.Summary);
 			return null;
 		}

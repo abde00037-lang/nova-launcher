@@ -117,7 +117,7 @@ public static class ForgeInstaller
 		{
 			if (e.Data != null)
 			{
-				output.AppendLine(e.Data);
+				lock (output) output.AppendLine(e.Data);
 				log?.Report(e.Data);
 				int n = Interlocked.Increment(ref linesSeen);
 				int pct = Math.Min(96, 55 + n / 6);
@@ -128,7 +128,7 @@ public static class ForgeInstaller
 		{
 			if (e.Data != null)
 			{
-				output.AppendLine(e.Data);
+				lock (output) output.AppendLine(e.Data);
 				log?.Report(e.Data);
 			}
 		};
@@ -137,19 +137,28 @@ public static class ForgeInstaller
 		process.BeginErrorReadLine();
 		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
 		timeout.CancelAfter(TimeSpan.FromMinutes(6.0));
-		await process.WaitForExitAsync(timeout.Token).ConfigureAwait(continueOnCapturedContext: false);
-		if (!IsInstalled(mcVersion, forgeVersion, paths))
+		try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
+		catch (OperationCanceledException)
 		{
-			string text = output.ToString().Trim();
-			if (text.Length > 600)
-			{
-				text = text.Substring(text.Length - 600, 600);
-			}
-			throw new InvalidOperationException("the forge installer finished without writing the version files. Output tail: " + text);
+			try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+			throw;
 		}
+		process.WaitForExit(); // Wait for redirected output callbacks to finish before inspecting them.
+		string text;
+		lock (output) text = output.ToString().Trim();
+        CheckInstallerOutcome(process.ExitCode, text, IsInstalled(mcVersion, forgeVersion, paths));
 		progress?.Report(new DownloadProgress("Forge", 100, 100, 0L, "Forge " + coreId + " installed"));
 		log?.Report("Forge " + coreId + " installed");
 		return coreId;
+	}
+
+	internal static void CheckInstallerOutcome(int exitCode, string text, bool profileExists)
+	{
+		if (exitCode != 0 || text.Contains("There was an error during installation", StringComparison.OrdinalIgnoreCase) || !profileExists)
+		{
+			if (text.Length > 600) text = text.Substring(text.Length - 600, 600);
+			throw new InvalidOperationException($"Forge installation failed (exit {exitCode}); verify the network and retry. Output tail: " + text);
+		}
 	}
 
 	public static (string? McVersion, string? ForgeVersion) Split(string versionId)
