@@ -83,23 +83,18 @@ public static class LauncherUpdater
 		string repo = string.IsNullOrWhiteSpace(repoSlug) ? DefaultRepo : repoSlug.Trim().Trim('/');
 		try
 		{
-			// GitHub's anonymous REST API is rate-limited per public IP. The release Atom feed
-			// is a lightweight public endpoint and avoids making startup checks consume that quota.
-			return await CheckLatestFromAtomAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+			// Do not call api.github.com here: its anonymous quota is shared by public IP,
+			// so a single 403 can disable update discovery for every Nova user behind a NAT.
+			LauncherUpdateInfo? atomUpdate = await CheckLatestFromAtomAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+			if (atomUpdate != null) return atomUpdate;
 		}
-		catch (HttpRequestException) when (!ct.IsCancellationRequested)
-		{
-			// Retain the original JSON API as a fallback if GitHub's release feed is unavailable.
-			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
-		}
-		catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-		{
-			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
-		}
-		catch (System.Xml.XmlException) when (!ct.IsCancellationRequested)
-		{
-			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
-		}
+		catch (HttpRequestException) when (!ct.IsCancellationRequested) { }
+		catch (TaskCanceledException) when (!ct.IsCancellationRequested) { }
+		catch (System.Xml.XmlException) when (!ct.IsCancellationRequested) { }
+
+		// GitHub's latest-release page redirects to the current published tag. This is an
+		// independent public fallback and does not consume the REST API rate limit.
+		return await CheckLatestFromReleaseRedirectAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
 	}
 
 	private static async Task<LauncherUpdateInfo?> CheckLatestFromAtomAsync(string repo, bool includeSameOrOlder, CancellationToken ct)
@@ -150,49 +145,49 @@ public static class LauncherUpdater
 			releaseBase + "/SHA256SUMS.txt");
 	}
 
-	private static async Task<LauncherUpdateInfo?> CheckLatestFromApiAsync(string repo, bool includeSameOrOlder, CancellationToken ct)
+	private static async Task<LauncherUpdateInfo?> CheckLatestFromReleaseRedirectAsync(string repo, bool includeSameOrOlder, CancellationToken ct)
 	{
-		string apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
 		using HttpClient http = new HttpClient { Timeout = TimeSpan.FromSeconds(18.0) };
 		http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NovaWorkbench/" + CurrentVersion);
-		http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github+json");
-		using HttpResponseMessage response = await http.GetAsync(apiUrl, ct).ConfigureAwait(false);
-		if ((int)response.StatusCode == 404) return null;
+		using HttpResponseMessage response = await http.GetAsync(
+			$"https://github.com/{repo}/releases/latest", HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
 		response.EnsureSuccessStatusCode();
-		using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-		using JsonDocument doc = await JsonDocument.ParseAsync(stream, default, ct).ConfigureAwait(false);
-		JsonElement root = doc.RootElement;
-		string tag = root.TryGetProperty("tag_name", out JsonElement tagNode) ? tagNode.GetString() ?? string.Empty : string.Empty;
-		if (string.IsNullOrWhiteSpace(tag)) return null;
+
+		// HttpClient follows GitHub's redirect from /releases/latest to /releases/tag/{tag}.
+		// Validate the final host and path before trusting the tag or constructing asset URLs.
+		Uri? releaseUri = response.RequestMessage?.RequestUri;
+		if (releaseUri == null || !releaseUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+			!releaseUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return null;
+		string[] path = releaseUri.AbsolutePath.Trim('/').Split('/');
+		string[] expectedRepo = repo.Split('/', StringSplitOptions.RemoveEmptyEntries);
+		if (expectedRepo.Length != 2 || path.Length != 5 ||
+			!path[0].Equals(expectedRepo[0], StringComparison.OrdinalIgnoreCase) ||
+			!path[1].Equals(expectedRepo[1], StringComparison.OrdinalIgnoreCase) ||
+			!path[2].Equals("releases", StringComparison.OrdinalIgnoreCase) ||
+			!path[3].Equals("tag", StringComparison.OrdinalIgnoreCase)) return null;
+		string tag = Uri.UnescapeDataString(path[4]);
+		if (string.IsNullOrWhiteSpace(tag) || tag.Contains('/') || tag.Contains('\\')) return null;
 		string current = CurrentVersion;
 		if (!includeSameOrOlder && !IsNewer(tag, current)) return null;
 		string latestClean = NormalizeVersion(tag).ToString(3);
-		string title = root.TryGetProperty("name", out JsonElement nameNode) ? nameNode.GetString() ?? tag : tag;
-		string notes = root.TryGetProperty("body", out JsonElement bodyNode) ? bodyNode.GetString() ?? string.Empty : string.Empty;
-		string htmlUrl = root.TryGetProperty("html_url", out JsonElement htmlNode) ? htmlNode.GetString() ?? $"https://github.com/{repo}/releases" : $"https://github.com/{repo}/releases";
-		DateTimeOffset? published = null;
-		if (root.TryGetProperty("published_at", out JsonElement publishedNode) && publishedNode.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(publishedNode.GetString(), out DateTimeOffset parsedDate)) published = parsedDate;
-		string? downloadUrl = null;
-		string? assetName = null;
+		string assetName = ExpectedAssetPrefix + ".zip";
+		string releaseBase = $"https://github.com/{repo}/releases/download/{Uri.EscapeDataString(tag)}";
+		string downloadUrl = releaseBase + "/" + assetName;
 		long assetSize = 0L;
-		string? checksumUrl = null;
-		if (root.TryGetProperty("assets", out JsonElement assets) && assets.ValueKind == JsonValueKind.Array)
+		try
 		{
-			foreach (JsonElement asset in assets.EnumerateArray())
-			{
-				string aName = asset.TryGetProperty("name", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty;
-				string aUrl = asset.TryGetProperty("browser_download_url", out JsonElement url) ? url.GetString() ?? string.Empty : string.Empty;
-				long aSize = asset.TryGetProperty("size", out JsonElement size) ? size.GetInt64() : 0L;
-				if (aName.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl)) checksumUrl = aUrl;
-				if (aName.Equals(ExpectedAssetPrefix + ".zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl))
-				{
-					downloadUrl = aUrl;
-					assetName = aName;
-					assetSize = aSize;
-				}
-			}
+			using HttpRequestMessage head = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
+			using HttpResponseMessage assetResponse = await http.SendAsync(head, ct).ConfigureAwait(false);
+			long? contentLength = assetResponse.Content.Headers.ContentLength;
+			if (assetResponse.IsSuccessStatusCode && contentLength.HasValue && contentLength.Value > 0 && contentLength.Value <= 2L * 1024 * 1024 * 1024)
+				assetSize = contentLength.Value;
 		}
-		return new LauncherUpdateInfo(current, latestClean, tag, title, notes, htmlUrl, downloadUrl, assetName, assetSize, published, checksumUrl);
+		catch (HttpRequestException) when (!ct.IsCancellationRequested) { }
+		catch (TaskCanceledException) when (!ct.IsCancellationRequested) { }
+
+		return new LauncherUpdateInfo(
+			current, latestClean, tag, "Nova Launcher " + tag, string.Empty, releaseUri.AbsoluteUri,
+			downloadUrl, assetName, assetSize, null, releaseBase + "/SHA256SUMS.txt");
 	}
 
 	/// <summary>

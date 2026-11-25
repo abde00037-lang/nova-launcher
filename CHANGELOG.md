@@ -4,6 +4,10 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 
 ## [Unreleased]
 
+## [v2.1.15] — 2026-11-25
+- Permanently remove the rate-limited anonymous GitHub REST API from launcher update discovery. Use the public Atom feed first and the validated `/releases/latest` redirect as an independent fallback.
+- Keep OTA asset size discovery and mandatory SHA-256 verification before staging.
+
 ## [v2.1.14] — 2026-11-24
 - Fix launcher update discovery on shared IPs by reading GitHub's public release Atom feed first, avoiding the anonymous REST API's per-IP rate limit; retain the REST API as a fallback.
 - Continue verifying OTA packages against SHA-256 before staging; the feed-based path keeps size checks bounded by the updater's package limit.
