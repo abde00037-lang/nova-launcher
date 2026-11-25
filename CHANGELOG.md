@@ -2,6 +2,11 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.11]
+- Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
+- Keep the mod-page header and filter controls from overlapping at narrower widths.
+- Add WPF layout regressions for all main pages, nested scrolling, resizing, and mod-control overlap.
+
 ## [v2.1.10]
 - Add a fullscreen button and F11 shortcut (F11 or Escape exits fullscreen); restore the previous window state afterward.
 - Correct maximized window bounds for the current monitor's work area, keeping the Windows taskbar usable.

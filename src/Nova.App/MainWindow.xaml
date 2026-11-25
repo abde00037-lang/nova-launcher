@@ -583,7 +583,7 @@
         </Border>
 
         <ScrollViewer x:Name="WorkspaceScroll" automation:AutomationProperties.AutomationId="WorkspaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="WorkspaceScroll_ScrollChanged">
-          <ContentControl x:Name="ContentHost" MinWidth="850" MinHeight="520" HorizontalAlignment="Left" VerticalAlignment="Top" />
+          <ContentControl x:Name="ContentHost" automation:AutomationProperties.AutomationId="WorkspaceContent" MinWidth="850" MinHeight="520" HorizontalAlignment="Left" VerticalAlignment="Top" />
         </ScrollViewer>
       </Grid>
     </Grid>

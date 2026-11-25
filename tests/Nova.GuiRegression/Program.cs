@@ -2,7 +2,12 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
+using System.Reflection;
+using Nova.App;
 using Nova.App.ViewModels;
 using Nova.Core;
 
@@ -86,6 +91,79 @@ internal static class Program
         await Task.Delay(500); // Let cancelled, isolated scans release their file handles.
     }
 
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) yield return match;
+            foreach (var nested in Descendants<T>(child)) yield return nested;
+        }
+    }
+
+    private static Rect Bounds(FrameworkElement element, Window window) =>
+        element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
+
+    private static async Task LayoutRegression(string root)
+    {
+        Environment.SetEnvironmentVariable("NOVA_ROOT", root);
+        var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.InitializeComponent();
+        var window = new MainWindow { Width = 1280, Height = 700, ShowInTaskbar = false };
+        try
+        {
+            window.Show();
+            await Task.Delay(700);
+            var workspace = (ScrollViewer)window.FindName("WorkspaceScroll");
+            var host = (ContentControl)window.FindName("ContentHost");
+            var showView = typeof(MainWindow).GetMethod("ShowView", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new Exception("ShowView missing");
+            foreach (var page in new[] { "Home", "Instances", "Versions", "Account", "Mods", "Store", "Worlds", "Backups", "Logs", "Settings" })
+            {
+                showView.Invoke(window, new object[] { page });
+                await Task.Delay(250);
+                Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
+                      Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
+                      page + " fills the available workspace");
+                var nested = Descendants<ScrollViewer>(host).FirstOrDefault();
+                if (nested != null)
+                {
+                    // Resizing an inner list/text viewer raises a real routed
+                    // ScrollChanged event that bubbles to the outer workspace.
+                    nested.Width = 100;
+                    nested.Height = 100;
+                    nested.UpdateLayout();
+                    await Task.Delay(100);
+                    Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
+                          Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
+                          page + " inner scrolling does not shrink workspace");
+                }
+            }
+            window.Width = 900; window.Height = 600;
+            showView.Invoke(window, new object[] { "Mods" });
+            await Task.Delay(400);
+            Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
+                  Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
+                  "workspace sizes correctly in a smaller window");
+            var versionButton = Descendants<Button>(host).First(x => System.Windows.Automation.AutomationProperties.GetAutomationId(x) == "ModsVersionButton");
+            var searchBox = Descendants<TextBox>(host).First(x => x.IsVisible);
+            Check(!Bounds(searchBox, window).IntersectsWith(Bounds(versionButton, window)), "mod filter and version controls do not overlap");
+            var title = Descendants<TextBlock>(host).First(x => x.Text == "Installed Mods");
+            var add = Descendants<Button>(host).First(x => Equals(x.Content, "+ ADD JARS"));
+            Check(!Bounds(title, window).IntersectsWith(Bounds(add, window)), "mod heading and actions do not overlap");
+            window.Width = 1280; window.Height = 700;
+            await Task.Delay(400);
+            Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
+                  Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
+                  "workspace expands again after resizing larger");
+        }
+        finally
+        {
+            window.Close();
+            Environment.SetEnvironmentVariable("NOVA_ROOT", null);
+        }
+    }
+
     [STAThread]
     private static int Main()
     {
@@ -95,7 +173,7 @@ internal static class Program
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
         dispatcher.BeginInvoke(async () =>
         {
-            try { await Run(root); exit = 0; }
+            try { await Run(root); await LayoutRegression(root); exit = 0; }
             catch (Exception e) { Console.Error.WriteLine(e); }
             finally { dispatcher.BeginInvokeShutdown(DispatcherPriority.Background); }
         });

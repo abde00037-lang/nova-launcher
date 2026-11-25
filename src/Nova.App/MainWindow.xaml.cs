@@ -324,6 +324,8 @@ public partial class MainWindow : Window
 		}
 		}
 		UserControl content = val;
+		WorkspaceScroll.ScrollToHorizontalOffset(0);
+		WorkspaceScroll.ScrollToVerticalOffset(0);
 		ContentHost.Content = content;
 		_currentView = text;
 		_viewModel.OnActivePageChanged(text);
@@ -464,10 +466,14 @@ public partial class MainWindow : Window
 
     private void WorkspaceScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        // Keep the page bounded so its own scrolling/virtualized lists still work.
-        if (e.ViewportWidth <= 0 || e.ViewportHeight <= 0) return;
-        double width = Math.Max(ContentHost.MinWidth, e.ViewportWidth);
-        double height = Math.Max(ContentHost.MinHeight, e.ViewportHeight);
+        // ScrollChanged bubbles from each page's own lists and text viewers. Only
+        // the workspace viewport may determine the size of the workspace content.
+        if (!ReferenceEquals(e.OriginalSource, WorkspaceScroll)) return;
+        double viewportWidth = WorkspaceScroll.ViewportWidth;
+        double viewportHeight = WorkspaceScroll.ViewportHeight;
+        if (viewportWidth <= 0 || viewportHeight <= 0) return;
+        double width = Math.Max(ContentHost.MinWidth, viewportWidth);
+        double height = Math.Max(ContentHost.MinHeight, viewportHeight);
         if (Math.Abs(ContentHost.Width - width) > 0.5 || double.IsNaN(ContentHost.Width)) ContentHost.Width = width;
         if (Math.Abs(ContentHost.Height - height) > 0.5 || double.IsNaN(ContentHost.Height)) ContentHost.Height = height;
     }

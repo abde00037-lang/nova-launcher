@@ -21,19 +21,19 @@
 
     <!-- Header & Mode Controls -->
     <Grid Grid.Row="0" Margin="0,0,0,14">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
 
-      <StackPanel Grid.Column="0" Margin="0,0,20,0">
+      <StackPanel Grid.Row="0" Margin="0,0,0,10">
         <TextBlock Text="MODULATION &amp; UPDATES" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
         <TextBlock Text="Installed Mods" Style="{StaticResource H1}" />
         <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
                    Text="Drag &amp; drop .jar files anywhere onto this page, check SHA-1 updates against Modrinth, or toggle switches to rename jars to .disabled." />
       </StackPanel>
 
-      <WrapPanel Grid.Column="1" VerticalAlignment="Bottom">
+      <WrapPanel Grid.Row="1" VerticalAlignment="Top">
         <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3" Margin="0,0,8,0">
           <StackPanel Orientation="Horizontal">
             <RadioButton x:Name="SegInstalled" Content="INSTALLED" Style="{StaticResource Segment}" Tag="installed" IsChecked="True" automation:AutomationProperties.AutomationId="ModsModeInstalled" Click="Mode_Click" />
@@ -65,13 +65,8 @@
     </Grid>
 
     <!-- Filter Bar (Installed Mode) -->
-    <Grid Grid.Row="1" Margin="0,0,0,12" Visibility="{Binding ModsInstalledMode, Converter={StaticResource BoolVis}}">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="340" />
-        <ColumnDefinition Width="*" />
-      </Grid.ColumnDefinitions>
-
-      <Border Grid.Column="0" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="12,0" Height="38">
+    <WrapPanel Grid.Row="1" Margin="0,0,0,6" Visibility="{Binding ModsInstalledMode, Converter={StaticResource BoolVis}}">
+      <Border Width="300" Margin="0,0,8,6" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="12,0" Height="38">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
@@ -84,27 +79,25 @@
         </Grid>
       </Border>
 
-      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
         <Button automation:AutomationProperties.AutomationId="ModsVersionButton"
                 automation:AutomationProperties.Name="version"
                 Style="{StaticResource GhostButton}"
                 Padding="11,7"
                 FontSize="10.5"
-                Margin="0,0,8,0"
+                Margin="0,0,8,6"
                 ToolTip="Choose target modloader build for Quick Fetch"
                 Content="{Binding ModsTargetButtonLabel}"
                 Click="Target_Click" />
 
-        <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3" Margin="0,0,8,0">
+        <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="5" Padding="3" Margin="0,0,8,6">
           <StackPanel Orientation="Horizontal">
             <RadioButton x:Name="SegAll" Content="ALL" Style="{StaticResource Segment}" Tag="All" IsChecked="True" Padding="11,5" Click="State_Click" />
             <RadioButton x:Name="SegOn" Content="ENABLED" Style="{StaticResource Segment}" Tag="Enabled" Padding="11,5" Click="State_Click" />
             <RadioButton x:Name="SegOff" Content="DISABLED" Style="{StaticResource Segment}" Tag="Disabled" Padding="11,5" Click="State_Click" />
           </StackPanel>
         </Border>
-        <Button Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,7" Content="{Binding ModsSortLabel}" Click="Sort_Click" />
-      </StackPanel>
-    </Grid>
+        <Button Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,7" Margin="0,0,0,6" Content="{Binding ModsSortLabel}" Click="Sort_Click" />
+    </WrapPanel>
 
     <!-- INSTALLED MODS LIST -->
     <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0" Visibility="{Binding ModsInstalledMode, Converter={StaticResource BoolVis}}">

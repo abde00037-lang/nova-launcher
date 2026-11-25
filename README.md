@@ -37,7 +37,12 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.10
+## Latest update — v2.1.11
+
+- Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
+- The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
+
+## Previous update — v2.1.10
 
 - Use the fullscreen button or **F11** to fill the current monitor; press **F11** or **Esc** to exit fullscreen.
 - Maximized windows respect the monitor work area and taskbar. On smaller windows, use the workspace and navigation scrollbars to reach content.
