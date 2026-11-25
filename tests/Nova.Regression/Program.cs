@@ -61,6 +61,7 @@ try
         accounts.Save(account);
         Check(!File.ReadAllText(file).Contains(account.RefreshToken!), "new token protected");
     }
+    WorldRegression.Run(root);
     await SecurityRegression.Run(root);
     if (args.Length >= 1 && File.Exists(args[0]))
     {

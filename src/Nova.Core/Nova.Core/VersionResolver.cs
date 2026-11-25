@@ -126,6 +126,7 @@ public static class VersionResolver
 		foreach (VersionJson ancestor2 in Enumerable.Reverse(chain))
 		{
 			AppendModernArguments(resolvedVersion, ancestor2.Arguments);
+			if (SupportsQuickPlay(ancestor2.Arguments)) resolvedVersion.SupportsQuickPlaySingleplayer = true;
 		}
 		return resolvedVersion;
 	}
@@ -169,6 +170,20 @@ public static class VersionResolver
 				yield return library;
 			}
 		}
+	}
+
+	private static bool SupportsQuickPlay(ArgumentsBlock? block)
+	{
+		foreach (JsonElement element in block?.Game ?? new List<JsonElement>())
+		{
+			if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty("rules", out var rules) || rules.ValueKind != JsonValueKind.Array ||
+				!element.TryGetProperty("value", out var values) || values.ValueKind != JsonValueKind.Array) continue;
+			bool feature = rules.EnumerateArray().Any(r => r.ValueKind == JsonValueKind.Object && r.TryGetProperty("action", out var action) && action.ValueKind == JsonValueKind.String && action.GetString() == "allow" &&
+				r.TryGetProperty("features", out var f) && f.ValueKind == JsonValueKind.Object && f.TryGetProperty("is_quick_play_singleplayer", out var v) && v.ValueKind == JsonValueKind.True);
+			var args = values.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()).ToArray();
+			if (feature && args.Length == 2 && args[0] == "--quickPlaySingleplayer" && args[1] == "${quickPlaySingleplayer}") return true;
+		}
+		return false;
 	}
 
 	private static void AppendModernArguments(ResolvedVersion resolved, ArgumentsBlock? block)

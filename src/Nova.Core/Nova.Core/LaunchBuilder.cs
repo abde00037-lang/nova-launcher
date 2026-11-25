@@ -9,7 +9,7 @@ namespace Nova.Core;
 
 public static class LaunchBuilder
 {
-	public static LaunchPlan Build(InstanceConfig instance, ResolvedVersion version, LauncherPaths paths, JavaInstall java, string nativesDirectory, PlayerIdentity? identity = null)
+	public static LaunchPlan Build(InstanceConfig instance, ResolvedVersion version, LauncherPaths paths, JavaInstall java, string nativesDirectory, PlayerIdentity? identity = null, string? quickPlayWorld = null)
 	{
 		LaunchPlan launchPlan = new LaunchPlan
 		{
@@ -136,6 +136,15 @@ public static class LaunchBuilder
 			{
 				launchPlan.Arguments.Add(gameArg);
 			}
+		}
+		if (quickPlayWorld != null)
+		{
+			if (!version.SupportsQuickPlaySingleplayer) throw new InvalidOperationException("Direct world join is not supported by this Minecraft version; open the world from the game menu.");
+			WorldManager.ResolveWorld(instance.GameDirectory, quickPlayWorld);
+			if (instance.GameArgs.Concat(version.GameArgs).Any(a => a.StartsWith("--quickPlay", StringComparison.OrdinalIgnoreCase)))
+				throw new InvalidOperationException("Custom quick-play arguments conflict with the selected world.");
+			launchPlan.Arguments.Add("--quickPlaySingleplayer");
+			launchPlan.Arguments.Add(quickPlayWorld);
 		}
 		if (!version.GameArgs.Any((string a) => a.Contains("${assets_index_name}")))
 		{

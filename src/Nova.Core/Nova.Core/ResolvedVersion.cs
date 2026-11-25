@@ -26,6 +26,8 @@ public sealed class ResolvedVersion
 
 	public string ClientJarVersionId { get; set; } = "";
 
+	public bool SupportsQuickPlaySingleplayer { get; set; }
+
 	public DownloadEntry? ClientDownload { get; set; }
 
 	public List<string> Warnings { get; } = new List<string>();

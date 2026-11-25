@@ -14,7 +14,7 @@
       <StackPanel>
         <TextBlock Text="SINGLEPLAYER SAVES" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
         <TextBlock Text="Saved Worlds" Style="{StaticResource H1}" />
-        <TextBlock Text="Read-only inspection of the active profile's saves\ directory. Nova never alters level.dat or region files."
+        <TextBlock Text="Manage worlds for the selected profile. Close Minecraft before renaming or removing a world; keep backups."
                    Style="{StaticResource Muted}" Margin="0,4,0,0" />
       </StackPanel>
 
@@ -34,6 +34,7 @@
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <Border Grid.Column="0" Width="36" Height="36" CornerRadius="4" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Margin="0,0,12,0">
                     <TextBlock Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -42,6 +43,12 @@
                     <TextBlock Text="{Binding Title}" Style="{StaticResource Body}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding Detail}" FontFamily="{StaticResource MonoFont}" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0" />
                   </StackPanel>
+                  <WrapPanel Grid.Column="2" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Button Content="JOIN" Style="{StaticResource PrimaryButton}" Padding="12,7" Margin="0,0,6,0" Tag="{Binding}" Click="Join_Click" ToolTip="Open this world directly in supported Minecraft versions" />
+                    <Button Content="OPEN" Style="{StaticResource GhostButton}" Padding="12,7" Margin="0,0,6,0" Tag="{Binding}" Click="OpenWorld_Click" />
+                    <Button Content="RENAME" Style="{StaticResource GhostButton}" Padding="12,7" Margin="0,0,6,0" Tag="{Binding}" Click="Rename_Click" />
+                    <Button Content="DELETE" Style="{StaticResource GhostButton}" Padding="12,7" Tag="{Binding}" Click="Delete_Click" ToolTip="Move this world to Nova's local trash" />
+                  </WrapPanel>
                 </Grid>
               </Border>
             </DataTemplate>

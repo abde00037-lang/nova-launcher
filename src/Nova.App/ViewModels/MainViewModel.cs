@@ -1679,8 +1679,11 @@ public sealed partial class MainViewModel : ObservableObject
 		}
 	}
 
+	private int _instanceDetailLoadId;
+
 	private async Task LoadInstanceDetailsAsync(InstanceVm instance)
 	{
+		int loadId = ++_instanceDetailLoadId;
 		string modsDir = Path.Combine(instance.GameDirectory, "mods");
 		List<BackupInfo> backups = WorldBackup.List(Paths, instance.Id);
 		List<string> worlds = WorldBackup.ListWorlds(instance.GameDirectory);
@@ -1691,26 +1694,27 @@ public sealed partial class MainViewModel : ObservableObject
 			List<SimpleRow> worldRows = new List<SimpleRow>();
 			foreach (string item in worlds)
 			{
-				string path2 = Path.Combine(path, item);
-				long num = 0L;
-				DateTime dateTime;
 				try
 				{
-					DirectoryInfo directoryInfo = new DirectoryInfo(path2);
-					dateTime = directoryInfo.LastWriteTime;
-					foreach (FileInfo item2 in directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+					string path2 = WorldManager.ResolveWorld(instance.GameDirectory, item);
+					string display;
+					try { display = WorldManager.ReadDisplayName(instance.GameDirectory, item); }
+					catch { display = item; }
+					if (string.IsNullOrWhiteSpace(display)) display = item;
+					string changed = File.GetLastWriteTime(Path.Combine(path2, "level.dat")).ToString("yyyy-MM-dd HH:mm");
+					string size = "unknown size";
+					try
 					{
-						num += item2.Length;
+						var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+						long bytes = new DirectoryInfo(path2).EnumerateFiles("*", options).Sum(file => file.Length);
+						size = $"{Math.Round((double)bytes / 1024 / 1024, 1)} MB";
 					}
+					catch { /* Size is informational; retain the world if a file is inaccessible. */ }
+					worldRows.Add(new SimpleRow(display, "", $"Folder: {item}  ·  {changed}  ·  {size}", "", new WorldSelection(instance, item)));
 				}
-				catch
-				{
-					dateTime = DateTime.MinValue;
-				}
-				double value = Math.Round((double)num / 1024.0 / 1024.0, 1);
-				string value2 = ((dateTime == DateTime.MinValue) ? "unknown date" : dateTime.ToString("yyyy-MM-dd HH:mm"));
-				worldRows.Add(new SimpleRow(item, "", $"{value2}  ·  {value} MB"));
+				catch { /* Unsafe or missing worlds are not shown. */ }
 			}
+
 			List<ModEntry> scanSnapshot = modScanResult.Mods.ToList();
 			List<ModRowVm> modRows = modScanResult.Mods.OrderBy((ModEntry m) => m.Name ?? m.FileName, StringComparer.OrdinalIgnoreCase).Select((ModEntry mod) =>
 			{
@@ -1729,6 +1733,7 @@ public sealed partial class MainViewModel : ObservableObject
 			}).ToList();
 			RunOnUi(() =>
 			{
+				if (Selected != instance || loadId != _instanceDetailLoadId) return;
 				_allMods.Clear();
 				_allMods.AddRange(modRows);
 				ApplyModFilter();
@@ -3503,9 +3508,71 @@ public sealed partial class MainViewModel : ObservableObject
 		}
 	}
 
-	public async Task LaunchAsync()
+	private bool _worldOperationBusy;
+	private sealed record WorldSelection(InstanceVm Instance, string Folder);
+
+	private static string WorldFolderFor(SimpleRow row, InstanceVm instance)
 	{
-		if (Selected == null || IsRunning)
+		if (row.Tag is not WorldSelection selection || selection.Instance != instance)
+			throw new InvalidOperationException("The selected instance changed. Refresh the world list and try again.");
+		return selection.Folder;
+	}
+
+	public async Task JoinWorldAsync(SimpleRow row)
+	{
+		InstanceVm instance = Selected ?? throw new InvalidOperationException("Select an instance first.");
+		if (IsRunning || _worldOperationBusy) throw new InvalidOperationException("Close the running game and wait for world operations before joining.");
+		string folder = WorldFolderFor(row, instance);
+		WorldManager.ResolveWorld(instance.GameDirectory, folder);
+		string versions = string.IsNullOrWhiteSpace(instance.Config.VersionHome) ? Paths.Versions : instance.Config.VersionHome;
+		ResolvedVersion version = await Task.Run(() => VersionResolver.Resolve(instance.VersionId, versions));
+		if (Selected != instance || IsRunning || _worldOperationBusy) throw new InvalidOperationException("The instance or game state changed. Please try again.");
+		if (!version.SupportsQuickPlaySingleplayer) throw new InvalidOperationException("Direct world join is not supported by this version. Open the world from Minecraft's menu (Java Quick Play is available from 1.20).");
+		await LaunchAsync(folder);
+	}
+
+	public void OpenWorldFolder(SimpleRow row)
+	{
+		InstanceVm instance = Selected ?? throw new InvalidOperationException("Select an instance first.");
+		string folder = WorldFolderFor(row, instance);
+		string path = WorldManager.ResolveWorld(instance.GameDirectory, folder);
+		Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+	}
+
+	public async Task RenameWorldAsync(InstanceVm instance, SimpleRow row, string newName)
+	{
+		if (Selected != instance || IsRunning || _worldOperationBusy) throw new InvalidOperationException("Close Minecraft and wait for other world operations.");
+		string folder = WorldFolderFor(row, instance);
+		_worldOperationBusy = true;
+		try
+		{
+			string backup = await Task.Run(() => WorldManager.Rename(instance.GameDirectory, folder, newName));
+			AppendConsole("INFO", "World renamed; original level.dat saved at " + backup);
+			FlushConsole();
+			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
+		}
+		finally { _worldOperationBusy = false; }
+	}
+
+	public async Task<string> DeleteWorldAsync(InstanceVm instance, SimpleRow row)
+	{
+		if (Selected != instance || IsRunning || _worldOperationBusy) throw new InvalidOperationException("Close Minecraft and wait for other world operations.");
+		string folder = WorldFolderFor(row, instance);
+		_worldOperationBusy = true;
+		try
+		{
+			string trash = await Task.Run(() => WorldManager.MoveToTrash(instance.GameDirectory, folder));
+			AppendConsole("INFO", "World moved to Nova trash: " + trash);
+			FlushConsole();
+			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
+			return trash;
+		}
+		finally { _worldOperationBusy = false; }
+	}
+
+	public async Task LaunchAsync(string? quickPlayWorld = null)
+	{
+		if (Selected == null || IsRunning || _worldOperationBusy)
 		{
 			return;
 		}
@@ -3579,7 +3646,7 @@ public sealed partial class MainViewModel : ObservableObject
 			(LaunchPlan, int) tuple = await Task.Run(() =>
 			{
 				int item = NativeExtractor.ExtractAll(nativeJars, nativesDir);
-				return (Plan: LaunchBuilder.Build(instance, version, Paths, java, nativesDir, identity), Extracted: item);
+				return (Plan: LaunchBuilder.Build(instance, version, Paths, java, nativesDir, identity, quickPlayWorld), Extracted: item);
 			});
 			AppendConsole("INFO", tuple.Item2 + " native file(s) prepared");
 			foreach (string note in tuple.Item1.Notes)

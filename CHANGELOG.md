@@ -2,6 +2,12 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.8]
+- Open, rename, move to Nova trash, or directly join a world from the selected instance's Worlds page.
+- Rename changes only the Minecraft display name in `level.dat`; a verified copy of the previous metadata is kept separately. Removal moves the entire world into the instance's `.nova-world-trash` instead of permanently deleting it.
+- Direct join requires version metadata advertising singleplayer Quick Play (normally Java 1.20+). Older versions can still open the world from Minecraft's menu.
+- Close Minecraft before modifying worlds, and keep independent backups. File locks and filesystem checks reduce risk but cannot prevent every race with external processes.
+
 ## [v2.1.7]
 - Pin individual mod filenames per instance and preview Modrinth changelogs before updates.
 - Snapshot top-level mod files before bulk updates, verify individual backups, and restore an updated mod only if its recorded replacement is unchanged.

@@ -37,7 +37,18 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.7
+## Latest update — v2.1.8
+
+- In the selected instance's **Worlds** page, **JOIN** launches directly into the chosen world when its Minecraft metadata supports singleplayer Quick Play (normally Java 1.20+). Older versions can open the world from Minecraft's menu.
+- **OPEN** opens the world folder. **RENAME** changes its displayed Minecraft name, not the save-folder name; Nova saves the original `level.dat` in `.nova-world-metadata-backups/<unique-id>/level.dat` inside the instance's game directory.
+- **DELETE** asks for confirmation and moves the whole world to `.nova-world-trash/<unique-id>/<world-folder>` inside the game directory. To recover it, close Minecraft and manually move that world folder back into `saves`, choosing a different name if needed.
+- Close Minecraft before modifying worlds and keep a separate backup. Locking and path checks are safeguards, not a guarantee against every external-process race or filesystem failure.
+
+[Download the latest release](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [Full changelog](CHANGELOG.md)
+
+---
+
+## Previous update — v2.1.7
 
 - Pin a mod in **Installed Mods** to exclude its filename from Nova's update checks and installs. Pinning also applies when a mod is enabled or disabled; it does not control external tools or renamed files.
 - Modrinth changelogs, when provided, are shown before individual or bulk updates. Review compatibility with your server and modpack; a compatible Minecraft version and loader do not guarantee compatibility.
