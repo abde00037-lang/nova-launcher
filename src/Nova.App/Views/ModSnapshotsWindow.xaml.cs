@@ -76,7 +76,7 @@ public partial class ModSnapshotsWindow : Window
             return;
         }
         if (!EnsureSafeState()) return;
-        string summary = "Nova verifies each snapshot file using SHA-256 before restoring. Matching files are copied back; mod files added later are renamed to .disabled and are not deleted.\n\nThis does not restore worlds or configs. Back up the full instance first if you need those.\n\nSnapshot: " + snapshot.Id;
+        string summary = "Nova verifies every snapshot file using SHA-256 before changing mods and saves a recovery snapshot of the current mod files first. Matching files are copied back; mod files added later are renamed to .disabled and are not deleted.\n\nThis does not restore worlds or configs. Back up the full instance first if you need those.\n\nSnapshot: " + snapshot.Id;
         if (MessageBox.Show(this, summary, "Restore this mod snapshot?", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         if (!EnsureSafeState()) return;
         try

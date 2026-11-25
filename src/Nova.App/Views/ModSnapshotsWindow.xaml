@@ -16,7 +16,7 @@
     <StackPanel Grid.Row="0" Margin="0,0,0,14">
       <TextBlock Text="MOD RECOVERY" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
       <TextBlock x:Name="HeadingText" Style="{StaticResource H1}" FontSize="19" />
-      <TextBlock Text="Snapshots include mod files only—not worlds, configs, or the full instance. Files are SHA-256 checked before restoration; newer mods are disabled, not deleted."
+      <TextBlock Text="Snapshots include mod files only—not worlds, configs, or the full instance. Files are SHA-256 checked before restoration; a recovery snapshot is saved first, and newer mods are disabled, not deleted."
                  Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,5,0,0" />
     </StackPanel>
 

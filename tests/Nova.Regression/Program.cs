@@ -287,6 +287,7 @@ try
         string exportOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "export_pack", "{\"id\":\"t1\"}"));
         Check(exportOut.StartsWith("exported ") && Directory.Exists(Path.Combine(tbPaths.Root, "packs")), "agent export_pack writes into packs folder");
         byte[] dupOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar"));
+        byte[] dupBOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-b.jar"));
         string snap = await ModSnapshot.CreateAsync(tbMods);
         string snapId = Path.GetFileName(snap);
         var listedSnapshots = await ModSnapshot.ListAsync(tbMods);
@@ -297,10 +298,26 @@ try
         File.WriteAllText(Path.Combine(corruptSnapshot, "manifest.json"),
             """{"CreatedUtc":"2026-01-01T00:00:00Z","Files":[{"FileName":"../escape.jar","Sha256":"bad"}]}""");
         Check((await ModSnapshot.ListAsync(tbMods)).Count == 1, "mod snapshot list ignores malformed or unsafe manifests");
+        string snapshotDupB = Path.Combine(snap, "files", "dup-b.jar");
+        File.WriteAllText(snapshotDupB, "tampered snapshot content");
+        File.WriteAllText(Path.Combine(tbMods, "dup-a.jar"), "before failed restore");
+        try
+        {
+            await ModSnapshot.RestoreAsync(tbMods, snapId);
+            throw new Exception("FAIL corrupt snapshot restored");
+        }
+        catch (IOException e) when (e.Message.Contains("failed verification", StringComparison.OrdinalIgnoreCase))
+        { Console.WriteLine("PASS corrupt mod snapshot rejected before restore"); }
+        Check(File.ReadAllText(Path.Combine(tbMods, "dup-a.jar")) == "before failed restore",
+            "corrupt later snapshot file does not partially restore earlier mods");
+        File.WriteAllBytes(snapshotDupB, dupBOriginal);
         File.WriteAllBytes(Path.Combine(tbMods, "dup-a.jar"), Encoding.UTF8.GetBytes("changed-content"));
         File.WriteAllText(Path.Combine(tbMods, "extra-mod.jar"), "new");
         string restoreOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"" + snapId + "\"}"));
-        Check(restoreOut.StartsWith("restored "), "agent restore_mods round trip");
+        Check(restoreOut.StartsWith("restored ") && restoreOut.Contains("recovery snapshot "), "agent restore_mods round trip creates a recovery snapshot");
+        string recoveryId = restoreOut.Split("recovery snapshot ", StringSplitOptions.None).Last();
+        Check(File.ReadAllText(Path.Combine(tbMods, ".nova-mod-snapshots", recoveryId, "files", "dup-a.jar")) == "changed-content",
+            "restore recovery snapshot preserves the pre-restore mod content");
         Check(File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar")).SequenceEqual(dupOriginal), "restore_mods copies verified snapshot content back");
         Check(File.Exists(Path.Combine(tbMods, "extra-mod.jar.disabled")), "restore_mods disables mods added after snapshot");
         Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"zz\"}"))).StartsWith("snapshot id must"), "agent restore_mods rejects bad snapshot id");

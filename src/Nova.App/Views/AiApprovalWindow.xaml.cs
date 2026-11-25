@@ -13,7 +13,7 @@ public partial class AiApprovalWindow : Window
 		NoteText.Text = spec.Name switch
 		{
 			"install_mod" or "update_mods" => "A verified snapshot of the current mod files is created first (mods\\.nova-mod-snapshots). You can roll back with the restore_mods tool or by hand. Denied actions change nothing.",
-			"restore_mods" => "Restoring replaces current mod files with the verified snapshot copy. Denied actions change nothing.",
+			"restore_mods" => "Nova verifies every file and saves a recovery snapshot of current mods before restoring. Later-added mod files are disabled, not deleted. Denied actions change nothing.",
 			"export_pack" => "Writes a new pack zip into the launcher packs folder; the profile itself is not modified.",
 			_ => "This action changes launcher data. Denied actions change nothing."
 		};
