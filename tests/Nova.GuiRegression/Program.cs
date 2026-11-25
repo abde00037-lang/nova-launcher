@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using System.Reflection;
 using Nova.App;
 using Nova.App.ViewModels;
+using Nova.App.Views;
 using Nova.Core;
 
 internal static class Program
@@ -149,6 +150,45 @@ internal static class Program
         try { await server.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
     }
 
+    private static bool? RunApprovalDialog(Window owner, string buttonAutomationId)
+    {
+        var spec = new AiToolSpec("install_mod", "Install a mod", "{}", false);
+        var call = new AiToolCall("call-1", "install_mod", "{\"instance_id\":\"fixture\",\"query\":\"example\"}");
+        var dialog = new AiApprovalWindow(spec, call) { Owner = owner };
+        Exception? callbackError = null;
+        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                var buttons = Descendants<Button>(dialog).ToArray();
+                var target = buttons.FirstOrDefault(button =>
+                    System.Windows.Automation.AutomationProperties.GetAutomationId(button) == buttonAutomationId);
+                Check(target != null, "AI approval card exposes " + buttonAutomationId);
+                Check(buttons.Any(button => Equals(button.Content, "ALLOW")) &&
+                      buttons.Any(button => Equals(button.Content, "DENY")),
+                      "AI approval card shows explicit allow and deny actions");
+                Check(Descendants<TextBlock>(dialog).Any(text => text.Text.Contains("install_mod")) &&
+                      Descendants<TextBlock>(dialog).Any(text => text.Text.Contains("fixture")),
+                      "AI approval card displays tool and arguments");
+                target!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
+            catch (Exception ex)
+            {
+                callbackError = ex;
+                dialog.Close();
+            }
+        }), DispatcherPriority.ContextIdle);
+        bool? result = dialog.ShowDialog();
+        if (callbackError != null) throw callbackError;
+        return result;
+    }
+
+    private static void AiApprovalRegression(Window owner)
+    {
+        Check(RunApprovalDialog(owner, "AiApproveDeny") == false, "AI write approval dialog denies on explicit deny");
+        Check(RunApprovalDialog(owner, "AiApproveAllow") == true, "AI write approval dialog allows on explicit allow");
+    }
+
     private static async Task LayoutRegression(string root)
     {
         Environment.SetEnvironmentVariable("NOVA_ROOT", root);
@@ -159,6 +199,7 @@ internal static class Program
         {
             window.Show();
             await Task.Delay(700);
+            AiApprovalRegression(window);
             var workspace = (ScrollViewer)window.FindName("WorkspaceScroll");
             var host = (ContentControl)window.FindName("ContentHost");
             var showView = typeof(MainWindow).GetMethod("ShowView", BindingFlags.Instance | BindingFlags.NonPublic)
