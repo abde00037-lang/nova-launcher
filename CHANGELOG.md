@@ -2,7 +2,7 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
-## [v2.1.6] — 2026-11-24
+## [v2.1.6] — 2026-11-25
 - Resume interrupted update downloads and verify the complete package and runtime.
 - Back up and verify replaced files; report installation failures and attempt rollback.
 - Show update progress and the final installer result.

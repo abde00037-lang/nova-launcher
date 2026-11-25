@@ -39,9 +39,12 @@ The portable package keeps the application and its data under a launcher directo
 
 ## Latest update — v2.1.6
 
-- Update downloads resume after interruptions and are checked with SHA-256.
-- The installer verifies files and attempts rollback if copying fails.
-- Back up data before updating; rollback cannot guarantee recovery from every interruption.
+- Interrupted downloads can resume; the completed update package is checked against SHA-256.
+- Files are staged and verified before installation; if copying fails, the installer attempts to restore replaced files and reports the result.
+- An isolated test of the published v2.1.6 update resumed after two network interruptions, installed successfully, and preserved test data. [CI](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560382899) and the [release workflow](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560649747) passed.
+- Back up important data first. Rollback is best-effort, not a guarantee against power loss or every failure. A checksum published alongside the package is not an independent digital signature.
+
+**Updating:** Back up your launcher data, then use **Update & Restart** in Nova. If an older updater cannot download v2.1.6, close Nova, download [`nova-bin-win-x64.zip`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/nova-bin-win-x64.zip), verify it against [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/SHA256SUMS.txt), extract it to a temporary folder, and copy its contents into your existing launcher's `bin` folder, replacing application files. Do not overwrite or delete your data folders. Restart Nova and check the displayed version.
 
 [Download v2.1.6](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.6) · [Full changelog](CHANGELOG.md)
 
