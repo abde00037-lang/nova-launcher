@@ -134,9 +134,17 @@
           </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
-          <ItemsControl ItemsSource="{Binding Mods}">
-            <ItemsControl.ItemTemplate>
+        <ListBox Grid.Row="1" ItemsSource="{Binding Mods}" BorderThickness="0" Background="Transparent" Padding="12,10"
+                 ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter HorizontalAlignment="Stretch" /></ControlTemplate></Setter.Value></Setter>
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
               <DataTemplate>
                 <Border Style="{StaticResource CardFlat}" Padding="11,9" Margin="0,0,0,6">
                   <Grid>
@@ -212,9 +220,8 @@
                   </Grid>
                 </Border>
               </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+            </ListBox.ItemTemplate>
+        </ListBox>
       </Grid>
     </Border>
 

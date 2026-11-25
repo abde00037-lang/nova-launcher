@@ -6,12 +6,13 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Nova.Core;
 
 public static class ModScanner
 {
-	public static ModScanResult Scan(string modsDirectory)
+	public static ModScanResult Scan(string modsDirectory, CancellationToken cancellationToken = default)
 	{
 		ModScanResult modScanResult = new ModScanResult();
 		if (!Directory.Exists(modsDirectory))
@@ -20,6 +21,7 @@ public static class ModScanner
 		}
 		foreach (string item in Directory.GetFiles(modsDirectory).OrderBy((string p) => p, StringComparer.OrdinalIgnoreCase))
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			string fileName = Path.GetFileName(item);
 			string extension = Path.GetExtension(fileName);
 			if (string.Equals(extension, ".jar", StringComparison.OrdinalIgnoreCase) || fileName.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase))
@@ -42,6 +44,7 @@ public static class ModScanner
 				}
 			}
 		}
+		cancellationToken.ThrowIfCancellationRequested();
 		foreach (IGrouping<string, ModEntry> item2 in modScanResult.Mods.Where((ModEntry m) => !string.IsNullOrEmpty(m.ModId)).GroupBy((ModEntry m) => m.ModId, StringComparer.OrdinalIgnoreCase))
 		{
 			if (item2.Count() > 1)

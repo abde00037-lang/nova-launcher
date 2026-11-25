@@ -98,6 +98,16 @@ static class WorldRegression
                 locked.Unlock(0, 1);
             }
         }
+        long expectedBytes = Directory.EnumerateFiles(world, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
+        Check(WorldManager.CalculateSize(game, "World Space") == expectedBytes, "on-demand world size counts files");
+        using (var cancelled = new CancellationTokenSource())
+        {
+            cancelled.Cancel();
+            Reject<OperationCanceledException>(() => WorldManager.CalculateSize(game, "World Space", cancelled.Token), "world size scan supports cancellation");
+            string modsDir = Path.Combine(game, "mods"); Directory.CreateDirectory(modsDir);
+            File.WriteAllText(Path.Combine(modsDir, "test.jar"), "not a jar");
+            Reject<OperationCanceledException>(() => ModScanner.Scan(modsDir, cancelled.Token), "mod scan supports cancellation");
+        }
         string versions = Path.Combine(root, "world-versions");
         void WriteVersion(string id, string json) { string d = Path.Combine(versions, id); Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, id + ".json"), json); }
         WriteVersion("1.20.1", "{\"id\":\"1.20.1\",\"mainClass\":\"Main\",\"arguments\":{\"game\":[{\"rules\":[{\"action\":\"allow\",\"features\":{\"is_quick_play_singleplayer\":true}}],\"value\":[\"--quickPlaySingleplayer\",\"${quickPlaySingleplayer}\"]}]}} ");

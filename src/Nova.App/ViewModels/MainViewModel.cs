@@ -484,6 +484,8 @@ public sealed partial class MainViewModel : ObservableObject
 			if (Set(ref _isRunning, value, "IsRunning"))
 			{
 				Raise("PlayLabel");
+				if (value) { CancelModScan(); CancelModEnrichment(); CancelWorldSizes(); }
+				else { StartModScan(); StartModEnrichment(); }
 				RefreshCommands();
 			}
 		}
@@ -1620,6 +1622,14 @@ public sealed partial class MainViewModel : ObservableObject
 
 	private void OnSelectionChanged()
 	{
+		CancelInstanceDetails();
+		_allMods.Clear();
+		Mods.Clear();
+		Worlds.Clear();
+		Backups.Clear();
+		ModsMetaStatus = "";
+		Raise("ModsSummary");
+		Raise("ModsShownLabel");
 		RaiseModsTargetState();
 		Raise("CanCheckModUpdates");
 		PendingModUpdatesCount = 0;
@@ -1654,7 +1664,7 @@ public sealed partial class MainViewModel : ObservableObject
 			StatusProgress = 0.0;
 			StatusIndeterminate = false;
 		}
-		LoadInstanceDetailsAsync(Selected);
+		_ = LoadInstanceDetailsAsync(Selected);
 		RequestAutoCheck();
 	}
 
@@ -1680,76 +1690,204 @@ public sealed partial class MainViewModel : ObservableObject
 	}
 
 	private int _instanceDetailLoadId;
+	private CancellationTokenSource? _instanceDetailsCts;
+	private CancellationTokenSource? _worldSizeCts;
+	private readonly SemaphoreSlim _detailScanGate = new SemaphoreSlim(1, 1);
+	private readonly SemaphoreSlim _enrichmentGate = new SemaphoreSlim(1, 1);
+	private readonly SemaphoreSlim _modScanGate = new SemaphoreSlim(1, 1);
+	private CancellationTokenSource? _modScanCts;
+	private int _modScanRequestedLoadId = -1;
+	private CancellationTokenSource? _enrichmentCts;
+	private bool _modsPageActive;
+	private int _enrichmentRequestedLoadId = -1;
+	private IReadOnlyList<ModEntry> _scannedMods = Array.Empty<ModEntry>();
+	private InstanceVm? _scannedModsInstance;
+
+	private void CancelWorldSizes()
+	{
+		_worldSizeCts?.Cancel();
+		_worldSizeCts = null;
+	}
+
+	private void CancelModScan()
+	{
+		if (_modScanCts == null) return;
+		_modScanCts.Cancel();
+		_modScanCts = null;
+		_modScanRequestedLoadId = -1;
+	}
+
+	private void CancelModEnrichment()
+	{
+		_enrichmentCts?.Cancel();
+		_enrichmentCts = null;
+		_enrichmentRequestedLoadId = -1;
+	}
+
+	private void CancelInstanceDetails()
+	{
+		_instanceDetailsCts?.Cancel();
+		_instanceDetailsCts = null;
+		CancelWorldSizes();
+		CancelModScan();
+		CancelModEnrichment();
+		_modScanRequestedLoadId = -1;
+		_scannedMods = Array.Empty<ModEntry>();
+		_scannedModsInstance = null;
+		_instanceDetailLoadId++;
+	}
+
+	public void OnActivePageChanged(string page)
+	{
+		if (!string.Equals(page, "worlds", StringComparison.OrdinalIgnoreCase)) CancelWorldSizes();
+		bool active = string.Equals(page, "mods", StringComparison.OrdinalIgnoreCase);
+		if (_modsPageActive == active) return;
+		_modsPageActive = active;
+		if (active) { StartModScan(); StartModEnrichment(); }
+		else { CancelModScan(); CancelModEnrichment(); }
+	}
 
 	private async Task LoadInstanceDetailsAsync(InstanceVm instance)
 	{
-		int loadId = ++_instanceDetailLoadId;
-		string modsDir = Path.Combine(instance.GameDirectory, "mods");
-		List<BackupInfo> backups = WorldBackup.List(Paths, instance.Id);
-		List<string> worlds = WorldBackup.ListWorlds(instance.GameDirectory);
-		await Task.Run(() =>
+		CancelInstanceDetails();
+		int loadId = _instanceDetailLoadId;
+		var cts = new CancellationTokenSource();
+		_instanceDetailsCts = cts;
+		CancellationToken ct = cts.Token;
+		bool Current() => !ct.IsCancellationRequested && Selected == instance && loadId == _instanceDetailLoadId;
+		StartModScan();
+		try
 		{
-			ModScanResult modScanResult = (Directory.Exists(modsDir) ? ModScanner.Scan(modsDir) : new ModScanResult());
-			string path = Path.Combine(instance.GameDirectory, "saves");
-			List<SimpleRow> worldRows = new List<SimpleRow>();
-			foreach (string item in worlds)
+			await Task.Run(async () =>
 			{
+				await _detailScanGate.WaitAsync(ct).ConfigureAwait(false);
 				try
 				{
-					string path2 = WorldManager.ResolveWorld(instance.GameDirectory, item);
-					string display;
-					try { display = WorldManager.ReadDisplayName(instance.GameDirectory, item); }
-					catch { display = item; }
-					if (string.IsNullOrWhiteSpace(display)) display = item;
-					string changed = File.GetLastWriteTime(Path.Combine(path2, "level.dat")).ToString("yyyy-MM-dd HH:mm");
-					string size = "unknown size";
-					try
+					var worldRows = new List<SimpleRow>();
+					foreach (string folder in WorldBackup.ListWorlds(instance.GameDirectory))
 					{
-						var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
-						long bytes = new DirectoryInfo(path2).EnumerateFiles("*", options).Sum(file => file.Length);
-						size = $"{Math.Round((double)bytes / 1024 / 1024, 1)} MB";
+						ct.ThrowIfCancellationRequested();
+						try
+						{
+							string path = WorldManager.ResolveWorld(instance.GameDirectory, folder);
+							string display;
+							try { display = WorldManager.ReadDisplayName(instance.GameDirectory, folder); }
+							catch { display = folder; }
+							if (string.IsNullOrWhiteSpace(display)) display = folder;
+							string changed = File.GetLastWriteTime(Path.Combine(path, "level.dat")).ToString("yyyy-MM-dd HH:mm");
+							string detail = $"Folder: {folder}  ·  {changed}";
+							worldRows.Add(new SimpleRow(display, "", detail, "", new WorldSelection(instance, folder, detail)));
+						}
+						catch { /* Unsafe or missing worlds are not shown. */ }
 					}
-					catch { /* Size is informational; retain the world if a file is inaccessible. */ }
-					worldRows.Add(new SimpleRow(display, "", $"Folder: {item}  ·  {changed}  ·  {size}", "", new WorldSelection(instance, item)));
-				}
-				catch { /* Unsafe or missing worlds are not shown. */ }
-			}
+					await RunOnUiAsync(() =>
+					{
+						if (!Current()) return;
+						Worlds.Clear();
+						foreach (SimpleRow row in worldRows) Worlds.Add(row);
+					}).ConfigureAwait(false);
+					ct.ThrowIfCancellationRequested();
+					List<BackupInfo> backups = WorldBackup.List(Paths, instance.Id, ct);
+					await RunOnUiAsync(() =>
+					{
+						if (!Current()) return;
+						Backups.Clear();
+						foreach (BackupInfo item in backups)
+							Backups.Add(new SimpleRow(item.WorldName, $"{item.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm}  ·  {item.Megabytes} MB", item.FileName, item.FileCount + " files", item));
+					}).ConfigureAwait(false);
 
-			List<ModEntry> scanSnapshot = modScanResult.Mods.ToList();
-			List<ModRowVm> modRows = modScanResult.Mods.OrderBy((ModEntry m) => m.Name ?? m.FileName, StringComparer.OrdinalIgnoreCase).Select((ModEntry mod) =>
+				}
+				finally { _detailScanGate.Release(); }
+			}, ct);
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex) { Log("instance details failed: " + ex); }
+		finally { if (_instanceDetailsCts == cts) _instanceDetailsCts = null; cts.Dispose(); }
+	}
+
+	private void StartModScan()
+	{
+		InstanceVm? instance = Selected;
+		if (!_modsPageActive || instance == null || _modScanRequestedLoadId == _instanceDetailLoadId) return;
+		CancelModScan();
+		int loadId = _instanceDetailLoadId;
+		_modScanRequestedLoadId = loadId;
+		var cts = new CancellationTokenSource();
+		_modScanCts = cts;
+		_ = LoadModsAsync(instance, loadId, cts);
+	}
+
+	private async Task LoadModsAsync(InstanceVm instance, int loadId, CancellationTokenSource source)
+	{
+		CancellationToken ct = source.Token;
+		string modsDir = Path.Combine(instance.GameDirectory, "mods");
+		bool Current() => !ct.IsCancellationRequested && _modsPageActive && Selected == instance && loadId == _instanceDetailLoadId;
+		try
+		{
+			await Task.Run(async () =>
 			{
-				long sizeBytes = 0L;
+				await _modScanGate.WaitAsync(ct).ConfigureAwait(false);
 				try
 				{
-					sizeBytes = new FileInfo(Path.Combine(modsDir, mod.FileName)).Length;
+					ct.ThrowIfCancellationRequested();
+					ModScanResult scan = Directory.Exists(modsDir) ? ModScanner.Scan(modsDir, ct) : new ModScanResult();
+					var entries = scan.Mods.ToList();
+					var rows = new List<ModRowVm>();
+					foreach (ModEntry mod in entries.OrderBy(m => m.Name ?? m.FileName, StringComparer.OrdinalIgnoreCase))
+					{
+						ct.ThrowIfCancellationRequested();
+						var row = new ModRowVm(mod.FileName, mod.Name ?? ModManager.DisplayName(mod.FileName), (mod.ModId ?? "?") + "  ·  " + (mod.Version ?? "?"), mod.Enabled, mod.SizeBytes, ToggleMod);
+						try { row.SetPinned(ModPinStore.IsPinned(modsDir, mod.FileName)); }
+						catch { row.SetPinned(true); } // Fail closed if the pin store cannot be inspected.
+						rows.Add(row);
+					}
+					await RunOnUiAsync(() =>
+					{
+						if (!Current()) return;
+						_allMods.Clear();
+						_allMods.AddRange(rows);
+						_scannedMods = entries;
+						_scannedModsInstance = instance;
+						ApplyModFilter();
+						StartModEnrichment();
+					}).ConfigureAwait(false);
 				}
-				catch
-				{
-				}
-				var row = new ModRowVm(mod.FileName, mod.Name ?? ModManager.DisplayName(mod.FileName), (mod.ModId ?? "?") + "  ·  " + (mod.Version ?? "?"), mod.Enabled, sizeBytes, ToggleMod);
-				try { row.SetPinned(ModPinStore.IsPinned(modsDir, mod.FileName)); }
-				catch { row.SetPinned(true); } // Fail closed if the pin store cannot be inspected.
-				return row;
-			}).ToList();
-			RunOnUi(() =>
+				finally { _modScanGate.Release(); }
+			}, ct);
+		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex)
+		{
+			if (_modScanCts == source) _modScanRequestedLoadId = -1;
+			Log("mod scan failed: " + ex);
+		}
+		finally { if (_modScanCts == source) _modScanCts = null; source.Dispose(); }
+	}
+
+	public async Task CalculateWorldSizesAsync()
+	{
+		InstanceVm instance = Selected ?? throw new InvalidOperationException("Select an instance first.");
+		if (IsRunning) throw new InvalidOperationException("Close Minecraft before calculating world sizes.");
+		CancelWorldSizes();
+		var cts = new CancellationTokenSource();
+		_worldSizeCts = cts;
+		CancellationToken ct = cts.Token;
+		int loadId = _instanceDetailLoadId;
+		SimpleRow[] rows = Worlds.ToArray();
+		try
+		{
+			foreach (SimpleRow row in rows)
 			{
-				if (Selected != instance || loadId != _instanceDetailLoadId) return;
-				_allMods.Clear();
-				_allMods.AddRange(modRows);
-				ApplyModFilter();
-				EnrichModsAsync(scanSnapshot, modsDir, instance.McVersion);
-				Worlds.Clear();
-				foreach (SimpleRow item3 in worldRows)
-				{
-					Worlds.Add(item3);
-				}
-				Backups.Clear();
-				foreach (BackupInfo item4 in backups)
-				{
-					Backups.Add(new SimpleRow(item4.WorldName, $"{item4.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm}  ·  {item4.Megabytes} MB", item4.FileName, item4.FileCount + " files", item4));
-				}
-			});
-		});
+				ct.ThrowIfCancellationRequested();
+				string folder = WorldFolderFor(row, instance);
+				long bytes = await Task.Run(() => WorldManager.CalculateSize(instance.GameDirectory, folder, ct), ct);
+				if (ct.IsCancellationRequested || Selected != instance || loadId != _instanceDetailLoadId || IsRunning) return;
+				int index = Worlds.IndexOf(row);
+				if (index >= 0 && row.Tag is WorldSelection selection) Worlds[index] = new SimpleRow(row.Title, row.Subtitle, $"{selection.BaseDetail}  ·  {Math.Round((double)bytes / 1024 / 1024, 1)} MB", row.Badge, row.Tag);
+			}
+		}
+		catch (OperationCanceledException) { }
+		finally { if (_worldSizeCts == cts) _worldSizeCts = null; cts.Dispose(); }
 	}
 
 	public void CycleModsSort()
@@ -2057,52 +2195,72 @@ public sealed partial class MainViewModel : ObservableObject
 		}
 	}
 
-	private async Task EnrichModsAsync(IReadOnlyList<ModEntry> scanned, string modsDir, string mcVersion)
+	private void StartModEnrichment()
 	{
-		if (scanned.Count == 0)
-		{
-			return;
-		}
+		InstanceVm? instance = Selected;
+		if (!_modsPageActive || IsRunning || instance == null || _scannedModsInstance != instance || _scannedMods.Count == 0 || _enrichmentRequestedLoadId == _instanceDetailLoadId) return;
+		CancelModEnrichment();
+		int loadId = _instanceDetailLoadId;
+		_enrichmentRequestedLoadId = loadId;
+		var cts = new CancellationTokenSource();
+		_enrichmentCts = cts;
+		_ = EnrichModsAsync(instance, _scannedMods, loadId, cts);
+	}
+
+	private async Task EnrichModsAsync(InstanceVm instance, IReadOnlyList<ModEntry> scanned, int loadId, CancellationTokenSource source)
+	{
+		CancellationToken ct = source.Token;
+		string modsDir = Path.Combine(instance.GameDirectory, "mods");
+		bool Current() => !ct.IsCancellationRequested && _modsPageActive && !IsRunning && Selected == instance && loadId == _instanceDetailLoadId;
 		try
 		{
-			ModMetaStore store = ModMetaStore.Load(Paths, Settings.CurseForgeKey);
-			int withIcon = 0;
-			RunOnUi(Apply);
-			Progress<string> progress = new Progress<string>((string line) =>
+			await Task.Run(async () =>
 			{
-				AppendConsole("INFO", "covers: " + line);
-			});
-			if (await Task.Run(() => store.EnrichAsync(scanned, modsDir, mcVersion, progress, () =>
-			{
-				RunOnUi(Apply);
-			})) > 0)
-			{
-				RunOnUi(Apply);
-				FlushConsole();
-			}
-			void Apply()
-			{
-				withIcon = 0;
-				foreach (ModRowVm allMod in _allMods)
+				await _enrichmentGate.WaitAsync(ct).ConfigureAwait(false);
+				try
 				{
-					ModMeta modMeta = store.Get(allMod.FileName);
-					if (modMeta != null)
+					ModMetaStore store = ModMetaStore.Load(Paths, Settings.CurseForgeKey);
+					Dictionary<string, (string? Title, string? Description, string? Icon)> Snapshot()
 					{
-						allMod.ApplyMeta(modMeta.Title, modMeta.Description, store.IconPath(modMeta));
-						if (allMod.HasIcon)
+						var result = new Dictionary<string, (string?, string?, string?)>(StringComparer.OrdinalIgnoreCase);
+						foreach (ModEntry entry in scanned)
 						{
-							withIcon++;
+							ct.ThrowIfCancellationRequested();
+							ModMeta? meta = store.Get(entry.FileName);
+							if (meta != null) result[entry.FileName] = (meta.Title, meta.Description, store.IconPath(meta));
 						}
+						return result;
 					}
+					void Apply(Dictionary<string, (string? Title, string? Description, string? Icon)> meta)
+					{
+						if (!Current()) return;
+						int withIcon = 0;
+						foreach (ModRowVm row in _allMods)
+						{
+							if (!meta.TryGetValue(row.FileName, out var value)) continue;
+							row.ApplyMeta(value.Title, value.Description, value.Icon);
+							if (row.HasIcon) withIcon++;
+						}
+						ModsMetaStatus = withIcon == 0 ? "" : $"{withIcon}/{_allMods.Count} with cover";
+					}
+					var cached = Snapshot();
+					await RunOnUiAsync(() => Apply(cached)).ConfigureAwait(false);
+					ct.ThrowIfCancellationRequested();
+					await store.EnrichAsync(scanned, modsDir, instance.McVersion, refresh: () =>
+					{
+						var snapshot = Snapshot();
+						RunOnUi(() => Apply(snapshot));
+					}, ct: ct).ConfigureAwait(false);
+					ct.ThrowIfCancellationRequested();
+					var complete = Snapshot();
+					await RunOnUiAsync(() => Apply(complete)).ConfigureAwait(false);
 				}
-				ModsMetaStatus = ((withIcon == 0) ? "" : $"{withIcon}/{_allMods.Count} with cover");
-				Raise("ModsMetaStatus");
-			}
+				finally { _enrichmentGate.Release(); }
+			}, ct);
 		}
-		catch (Exception ex)
-		{
-			Log("mod covers failed: " + ex);
-		}
+		catch (OperationCanceledException) { }
+		catch (Exception ex) { Log("mod covers failed: " + ex); }
+		finally { if (_enrichmentCts == source) _enrichmentCts = null; source.Dispose(); }
 	}
 
 	public Task<bool> ConfirmAsync(string title, string body, string yesLabel = "DELETE")
@@ -3509,7 +3667,7 @@ public sealed partial class MainViewModel : ObservableObject
 	}
 
 	private bool _worldOperationBusy;
-	private sealed record WorldSelection(InstanceVm Instance, string Folder);
+	private sealed record WorldSelection(InstanceVm Instance, string Folder, string BaseDetail);
 
 	private static string WorldFolderFor(SimpleRow row, InstanceVm instance)
 	{

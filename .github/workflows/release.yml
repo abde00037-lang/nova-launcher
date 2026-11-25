@@ -9,7 +9,7 @@ on:
       tag:
         description: 'Release tag to publish (e.g. v2.1.0 or v3.0.0)'
         required: true
-        default: 'v2.1.8'
+        default: 'v2.1.9'
 
 permissions:
   contents: write
@@ -33,6 +33,12 @@ jobs:
         run: |
           dotnet run --project tests/Nova.Regression/Nova.Regression.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'Security regression tests failed' }
+
+      - name: Run profile switching regression tests
+        shell: pwsh
+        run: |
+          dotnet run --project tests/Nova.GuiRegression/Nova.GuiRegression.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Profile switching regression tests failed' }
 
       - name: Determine release version
         id: ver

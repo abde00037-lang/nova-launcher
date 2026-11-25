@@ -37,7 +37,18 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.8
+## Latest update — v2.1.9
+
+- Large modpacks and world lists use virtualized rows; outdated scans are cancelled when switching profiles or pages.
+- Worlds load without recursively counting all their files. Use **CALCULATE SIZES** on the Worlds page when you need disk usage; close Minecraft before doing so.
+- Installed mods are scanned when the Mods page is open. Cover lookup runs on that page and pauses while a game is running, reducing background work elsewhere.
+- These changes target the launcher UI; they do not modify Minecraft settings or guarantee higher in-game FPS.
+
+[Download the latest release](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [Full changelog](CHANGELOG.md)
+
+---
+
+## Previous update — v2.1.8
 
 - In the selected instance's **Worlds** page, **JOIN** launches directly into the chosen world when its Minecraft metadata supports singleplayer Quick Play (normally Java 1.20+). Older versions can open the world from Minecraft's menu.
 - **OPEN** opens the world folder. **RENAME** changes its displayed Minecraft name, not the save-folder name; Nova saves the original `level.dat` in `.nova-world-metadata-backups/<unique-id>/level.dat` inside the instance's game directory.

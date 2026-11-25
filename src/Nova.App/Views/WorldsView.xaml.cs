@@ -9,6 +9,14 @@ public partial class WorldsView : UserControl
 {
     public WorldsView() { InitializeComponent(); }
     private void OpenSaves_Click(object sender, RoutedEventArgs e) => (DataContext as MainViewModel)?.OpenWorldsFolder();
+    private async void CalculateSizes_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm) return;
+        if (sender is Button button) button.IsEnabled = false;
+        try { await vm.CalculateWorldSizesAsync(); }
+        catch (Exception ex) { Error(ex); }
+        finally { if (sender is Button finishButton) finishButton.IsEnabled = true; }
+    }
     private static void Error(Exception ex) => MessageBox.Show(ex.Message, "Nova worlds", MessageBoxButton.OK, MessageBoxImage.Warning);
 
     private async void Join_Click(object sender, RoutedEventArgs e)

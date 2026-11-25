@@ -106,7 +106,7 @@ public static class WorldBackup
 		return list;
 	}
 
-	public static List<BackupInfo> List(LauncherPaths paths, string instanceId)
+	public static List<BackupInfo> List(LauncherPaths paths, string instanceId, CancellationToken cancellationToken = default)
 	{
 		string path = BackupRoot(paths, instanceId);
 		if (!Directory.Exists(path))
@@ -117,6 +117,7 @@ public static class WorldBackup
 		string[] files = Directory.GetFiles(path, "*.zip");
 		foreach (string text in files)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			BackupInfo backupInfo = new BackupInfo
 			{
 				FilePath = text,

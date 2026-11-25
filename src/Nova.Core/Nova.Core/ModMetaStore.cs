@@ -140,6 +140,7 @@ public sealed class ModMetaStore
 		Dictionary<string, ModEntry> byHash = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
 		foreach (ModEntry mod in pending)
 		{
+			ct.ThrowIfCancellationRequested();
 			string text = await TryHashAsync(Path.Combine(modsDirectory, mod.FileName), ct).ConfigureAwait(continueOnCapturedContext: false);
 			if (text != null)
 			{
@@ -236,6 +237,7 @@ public sealed class ModMetaStore
 				}
 			}
 		}
+		ct.ThrowIfCancellationRequested();
 		Save();
 		progress?.Report($"{resolved} of {pending.Count} mods got a cover");
 		return resolved;
@@ -322,6 +324,7 @@ public sealed class ModMetaStore
 		int resolved = 0;
 		foreach (KeyValuePair<string, (ModEntry, string)> item3 in projects)
 		{
+			ct.ThrowIfCancellationRequested();
 			item3.Deconstruct(out var key, out var value5);
 			string fileName = key;
 			(ModEntry, string) tuple = value5;
@@ -372,6 +375,7 @@ public sealed class ModMetaStore
 		}
 		foreach (string query in list)
 		{
+			ct.ThrowIfCancellationRequested();
 			if (_curseKey != null)
 			{
 				string text2 = await CurseLogoAsync(query, ct).ConfigureAwait(continueOnCapturedContext: false);

@@ -169,9 +169,13 @@ public sealed class ModRowVm : ObservableObject
 
 	public void ApplyMeta(string? title, string? description, string? iconPath)
 	{
-		_title = (string.IsNullOrWhiteSpace(title) ? null : title);
-		_description = description ?? "";
-		_iconPath = (string.IsNullOrWhiteSpace(iconPath) ? null : iconPath);
+		string? newTitle = string.IsNullOrWhiteSpace(title) ? null : title;
+		string newDescription = description ?? "";
+		string? newIcon = string.IsNullOrWhiteSpace(iconPath) ? null : iconPath;
+		if (_title == newTitle && _description == newDescription && _iconPath == newIcon) return;
+		_title = newTitle;
+		_description = newDescription;
+		_iconPath = newIcon;
 		Raise("DisplayName");
 		Raise("Initials");
 		Raise("Description");

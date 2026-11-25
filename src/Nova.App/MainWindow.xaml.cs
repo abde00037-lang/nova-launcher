@@ -310,6 +310,7 @@ public partial class MainWindow : Window
 		UserControl content = val;
 		ContentHost.Content = content;
 		_currentView = text;
+		_viewModel.OnActivePageChanged(text);
 		TextBlock pageTitle = PageTitle;
 		pageTitle.Text = (string.IsNullOrEmpty(text) || text == "home") ? "OVERVIEW" : text.ToUpperInvariant();
 		TryAutoCheck();

@@ -2,6 +2,12 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.9]
+- Reduce launcher work when switching large modpacks: scan installed mod metadata only when the Mods page is open, and cancel outdated background scans when changing profiles or pages.
+- Load world names and snapshots off the UI thread; avoid walking every world file during normal selection. **CALCULATE SIZES** computes world disk usage on request.
+- Virtualize the installed-mods and worlds lists so only visible rows are rendered. Mod covers load on the Mods page and pause while a game runs.
+- Preserve world management, snapshots, mod controls and the normal Minecraft launch process. Performance depends on hardware and profile contents.
+
 ## [v2.1.8]
 - Open, rename, move to Nova trash, or directly join a world from the selected instance's Worlds page.
 - Rename changes only the Minecraft display name in `level.dat`; a verified copy of the previous metadata is kept separately. Removal moves the entire world into the instance's `.nova-world-trash` instead of permanently deleting it.

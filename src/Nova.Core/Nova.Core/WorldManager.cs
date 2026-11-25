@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Security.Cryptography;
+using System.Threading;
 
 namespace Nova.Core;
 
@@ -21,6 +22,21 @@ public static class WorldManager
     {
         string world = ResolveWorld(gameDirectory, worldFolder);
         return WorldNbt.Read(SafePath.ResolveWithin(world, "level.dat")).Name;
+    }
+
+    // Potentially expensive on large modded worlds: callers choose when to run this.
+    public static long CalculateSize(string gameDirectory, string worldFolder, CancellationToken cancellationToken = default)
+    {
+        string world = ResolveWorld(gameDirectory, worldFolder);
+        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        long total = 0;
+        foreach (FileInfo file in new DirectoryInfo(world).EnumerateFiles("*", options))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            checked { total += file.Length; }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return total;
     }
 
     private static FileStream OperationLock(string gameDirectory)
