@@ -39,8 +39,9 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.12
+## Latest update — v2.1.13
 
+- Fix white backgrounds in AI provider dropdowns and add ready-to-edit AgentRouter and OneAIKey setups for OpenAI-compatible and Anthropic APIs.
 - Add an in-app AI assistant and supervised agent; every write action requires explicit approval.
 - Browse mod snapshots with stored sizes and missing-file status. Restore with SHA-256 preflight and an automatic recovery snapshot; explicitly delete only selected archived snapshots after confirmation.
 - The workspace remains responsive across window sizes, with regressions covering the main pages and snapshot workflows.

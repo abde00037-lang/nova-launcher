@@ -23,7 +23,7 @@
                    Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-        <ComboBox x:Name="ProviderCombo" Width="190" Margin="0,2,8,0"
+        <ComboBox x:Name="ProviderCombo" Style="{StaticResource DarkComboBox}" Width="190" Margin="0,2,8,0"
                   ItemsSource="{Binding AiChat.Providers}"
                   SelectedItem="{Binding AiChat.SelectedProvider}"
                   DisplayMemberPath="Name"

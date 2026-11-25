@@ -20,6 +20,34 @@ public partial class AiProvidersWindow : Window
 		Reload();
 	}
 
+	private void PresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+	{
+		if (PresetCombo?.SelectedItem is not ComboBoxItem item || item.Content is not string preset) return;
+		switch (preset)
+		{
+			case "AgentRouter · OpenAI-compatible":
+				ApplyPreset("AgentRouter-OpenAI", AiProtocol.OpenAiCompatible, "https://agentrouter.org/v1", "deepseek-v4-flash");
+				break;
+			case "AgentRouter · Anthropic":
+				ApplyPreset("AgentRouter-Anthropic", AiProtocol.Anthropic, "https://agentrouter.org", "claude-opus-5");
+				break;
+			case "OneAIKey · OpenAI-compatible":
+				ApplyPreset("OneAIKey-OpenAI", AiProtocol.OpenAiCompatible, "https://api.oneaiapikey.com/v1", "gpt-6-luna:free");
+				break;
+			case "OneAIKey · Anthropic":
+				ApplyPreset("OneAIKey-Anthropic", AiProtocol.Anthropic, "https://api.oneaiapikey.com", "qwen-qwen3.8-27b:free");
+				break;
+		}
+	}
+
+	private void ApplyPreset(string name, AiProtocol protocol, string baseUrl, string model)
+	{
+		NameBox.Text = name;
+		ProtocolCombo.SelectedItem = protocol;
+		BaseUrlBox.Text = baseUrl;
+		ModelsBox.Text = model;
+	}
+
 	private void Reload()
 	{
 		ProviderList.Items.Clear();

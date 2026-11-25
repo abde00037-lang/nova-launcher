@@ -26,13 +26,23 @@
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
       <ListBox x:Name="ProviderList" Grid.Column="0" Margin="0,0,10,0" SelectionChanged="ProviderList_SelectionChanged"
-               DisplayMemberPath="Name"
+               DisplayMemberPath="Name" Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" ItemContainerStyle="{StaticResource RowButton}"
                automation:AutomationProperties.AutomationId="AiProvList" />
       <StackPanel Grid.Column="1">
+        <TextBlock Text="QUICK SETUP" Style="{StaticResource SectionLabel}" FontSize="8.5" />
+        <ComboBox x:Name="PresetCombo" Style="{StaticResource DarkComboBox}" Margin="0,2,0,8"
+                  SelectionChanged="PresetCombo_SelectionChanged" automation:AutomationProperties.AutomationId="AiProvPreset">
+          <ComboBoxItem Content="Choose a provider preset…" IsSelected="True" />
+          <ComboBoxItem Content="AgentRouter · OpenAI-compatible" />
+          <ComboBoxItem Content="AgentRouter · Anthropic" />
+          <ComboBoxItem Content="OneAIKey · OpenAI-compatible" />
+          <ComboBoxItem Content="OneAIKey · Anthropic" />
+        </ComboBox>
         <TextBlock Text="NAME" Style="{StaticResource SectionLabel}" FontSize="8.5" />
         <TextBox x:Name="NameBox" Style="{StaticResource SearchBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvName" />
         <TextBlock Text="PROTOCOL" Style="{StaticResource SectionLabel}" FontSize="8.5" />
-        <ComboBox x:Name="ProtocolCombo" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvProtocol" />
+        <ComboBox x:Name="ProtocolCombo" Style="{StaticResource DarkComboBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvProtocol" />
         <TextBlock Text="BASE URL" Style="{StaticResource SectionLabel}" FontSize="8.5" />
         <TextBox x:Name="BaseUrlBox" Style="{StaticResource SearchBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvBase" />
         <TextBlock Text="MODELS (fallback order, comma separated)" Style="{StaticResource SectionLabel}" FontSize="8.5" />

@@ -4,6 +4,11 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 
 ## [Unreleased]
 
+## [v2.1.13] — 2026-11-24
+- Fix white backgrounds in AI provider and protocol dropdowns; give popup items and the provider list colors consistent with Nova's dark theme.
+- Add quick-setup presets for AgentRouter and OneAIKey using their documented OpenAI-compatible and Anthropic-compatible endpoints and model IDs.
+- Keep provider configurations editable and API keys protected locally with Windows DPAPI.
+
 ## [v2.1.12] — 2026-11-24
 - Add the BYOK AI assistant with OpenAI-compatible and Anthropic protocols, model fallback, encrypted key storage, an in-app AI Chat page, and `nova-cli ai` management commands.
 - Add a supervised agent for both protocols. Read-only diagnostics can run automatically; every write tool requires explicit approval. Mod updates and installs create verified mod snapshots.
