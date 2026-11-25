@@ -12,7 +12,7 @@ try {
         $zipPath = Join-Path $root "$kind.zip"
         $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
         try {
-            $entries = @('Nova/bin/Nova.exe', 'Nova/bin/Nova.Core.dll')
+            $entries = @('Nova/bin/Nova.exe', 'Nova/bin/Nova.Core.dll', 'Nova/bin/THIRD-PARTY-NOTICES.md', 'Nova/THIRD-PARTY-NOTICES.md')
             if ($kind -eq 'bad') { $entries += 'Nova/../../outside.txt' }
             foreach ($name in $entries) {
                 $entry = $zip.CreateEntry($name)
@@ -29,7 +29,7 @@ try {
         New-Item -ItemType Directory -Path "$dest/instances/demo/saves" -Force | Out-Null
         Set-Content -Path "$dest/instances/demo/saves/sentinel.txt" -Value 'preserve'
         $proc = Start-Process $exe -ArgumentList @('--silent','--dir',"`"$dest`"") -Wait -PassThru
-        if ($kind -eq 'good' -and ($proc.ExitCode -ne 0 -or !(Test-Path "$dest/bin/Nova.exe"))) { throw 'Normal installer test failed' }
+        if ($kind -eq 'good' -and ($proc.ExitCode -ne 0 -or !(Test-Path "$dest/bin/Nova.exe") -or !(Test-Path "$dest/THIRD-PARTY-NOTICES.md"))) { throw 'Normal installer test failed' }
         if ($kind -eq 'bad' -and ($proc.ExitCode -eq 0 -or (Test-Path "$dest/bin/Nova.exe") -or (Test-Path "$root/outside.txt"))) { throw 'Installer accepted path traversal' }
         if ((Get-Content "$dest/instances/demo/saves/sentinel.txt" -Raw).Trim() -ne 'preserve') { throw 'Installer changed world data' }
     }

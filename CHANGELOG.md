@@ -9,7 +9,7 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 - Add a supervised agent for both protocols. Read-only diagnostics can run automatically; every write tool requires explicit approval. Mod updates and installs create verified mod snapshots.
 - Add mod snapshot management in the Mods page: show stored size and missing-file state; create, restore, or permanently delete a selected archived snapshot after confirmation. Restore preflights all files, verifies SHA-256, saves a recovery snapshot, and disables later-added mods instead of deleting them.
 - Add a dedicated AI approval card and expanded regression coverage for agent tools, snapshot integrity/recovery/deletion, and GUI workflows.
-- Relicense the project from MIT to CC BY-NC 4.0 for releases except v2.0.0, which remains MIT; add third-party notices for the bundled .NET runtime and describe external/runtime-downloaded components.
+- Relicense the project from MIT to CC BY-NC 4.0 for releases except v2.0.0, which remains MIT; add third-party notices for the bundled .NET runtime, preserve those notices through offline installation, and describe external/runtime-downloaded components.
 
 ## [v2.1.11]
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
