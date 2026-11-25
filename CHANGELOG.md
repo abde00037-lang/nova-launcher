@@ -4,6 +4,10 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 
 ## [Unreleased]
 
+## [v2.1.16] — 2026-11-24
+- Simplify AI quick setup to exactly AgentRouter and OneAIKey; remove duplicated protocol-suffixed provider choices and invented provider-name variants.
+- Use each service's documented OpenAI-compatible API base and leave model IDs blank because both providers' model catalogs change; users supply exact IDs from their provider account.
+
 ## [v2.1.15] — 2026-11-25
 - Permanently remove the rate-limited anonymous GitHub REST API from launcher update discovery. Use the public Atom feed first and the validated `/releases/latest` redirect as an independent fallback.
 - Keep OTA asset size discovery and mandatory SHA-256 verification before staging.

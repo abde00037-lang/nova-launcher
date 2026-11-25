@@ -25,17 +25,13 @@ public partial class AiProvidersWindow : Window
 		if (PresetCombo?.SelectedItem is not ComboBoxItem item || item.Content is not string preset) return;
 		switch (preset)
 		{
-			case "AgentRouter · OpenAI-compatible":
-				ApplyPreset("AgentRouter-OpenAI", AiProtocol.OpenAiCompatible, "https://agentrouter.org/v1", "deepseek-v4-flash");
+			case "AgentRouter":
+				// Official OpenAI-compatible API base from AgentRouter's documentation.
+				ApplyPreset("AgentRouter", AiProtocol.OpenAiCompatible, "https://agentrouter.org/v1", string.Empty);
 				break;
-			case "AgentRouter · Anthropic":
-				ApplyPreset("AgentRouter-Anthropic", AiProtocol.Anthropic, "https://agentrouter.org", "claude-opus-5");
-				break;
-			case "OneAIKey · OpenAI-compatible":
-				ApplyPreset("OneAIKey-OpenAI", AiProtocol.OpenAiCompatible, "https://api.oneaiapikey.com/v1", "gpt-6-luna:free");
-				break;
-			case "OneAIKey · Anthropic":
-				ApplyPreset("OneAIKey-Anthropic", AiProtocol.Anthropic, "https://api.oneaiapikey.com", "qwen-qwen3.8-27b:free");
+			case "OneAIKey":
+				// Official OpenAI-compatible API base from OneAIKey's quickstart.
+				ApplyPreset("OneAIKey", AiProtocol.OpenAiCompatible, "https://api.oneaiapikey.com/v1", string.Empty);
 				break;
 		}
 	}

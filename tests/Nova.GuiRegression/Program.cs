@@ -106,6 +106,34 @@ internal static class Program
         element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
 
 
+    private static void AiProviderPresetRegression(string root)
+    {
+        var paths = new LauncherPaths(Path.Combine(root, "ai-provider-presets"));
+        Directory.CreateDirectory(paths.Root);
+        var window = new AiProvidersWindow(paths);
+        try
+        {
+            var presets = (ComboBox)(window.FindName("PresetCombo") ?? throw new Exception("AI provider preset list missing"));
+            var choices = presets.Items.OfType<ComboBoxItem>().Select(item => item.Content?.ToString()).ToArray();
+            Check(choices.SequenceEqual(new[] { "Choose a provider preset…", "AgentRouter", "OneAIKey" }),
+                  "AI quick setup exposes only AgentRouter and OneAIKey");
+
+            var name = (TextBox)window.FindName("NameBox")!;
+            var baseUrl = (TextBox)window.FindName("BaseUrlBox")!;
+            var models = (TextBox)window.FindName("ModelsBox")!;
+            var protocol = (ComboBox)window.FindName("ProtocolCombo")!;
+            presets.SelectedIndex = 1;
+            Check(name.Text == "AgentRouter" && baseUrl.Text == "https://agentrouter.org/v1" &&
+                  Equals(protocol.SelectedItem, AiProtocol.OpenAiCompatible) && string.IsNullOrWhiteSpace(models.Text),
+                  "AgentRouter preset uses its documented API base without a guessed model ID");
+            presets.SelectedIndex = 2;
+            Check(name.Text == "OneAIKey" && baseUrl.Text == "https://api.oneaiapikey.com/v1" &&
+                  Equals(protocol.SelectedItem, AiProtocol.OpenAiCompatible) && string.IsNullOrWhiteSpace(models.Text),
+                  "OneAIKey preset uses its documented API base without a guessed model ID");
+        }
+        finally { window.Close(); }
+    }
+
     private static async Task AiChatRegression(string root)
     {
         int port;
@@ -249,6 +277,7 @@ internal static class Program
         {
             window.Show();
             await Task.Delay(700);
+            AiProviderPresetRegression(root);
             AiApprovalRegression(window);
             var workspace = (ScrollViewer)window.FindName("WorkspaceScroll");
             var host = (ContentControl)window.FindName("ContentHost");

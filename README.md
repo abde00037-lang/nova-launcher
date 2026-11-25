@@ -39,9 +39,9 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.15
+## Latest update — v2.1.16
 
-- Fix launcher update discovery without calling GitHub's anonymous REST API: use the public release feed and a validated release-page redirect fallback, so shared-IP rate limits cannot block update checks.
+- AI quick setup now contains only the two requested providers: AgentRouter and OneAIKey. Their official OpenAI-compatible API base URLs are prefilled; model IDs are left blank because each provider's live catalog changes.
 - Fix white backgrounds in AI provider dropdowns and add ready-to-edit AgentRouter and OneAIKey setups for OpenAI-compatible and Anthropic APIs.
 - Add an in-app AI assistant and supervised agent; every write action requires explicit approval.
 - Browse mod snapshots with stored sizes and missing-file status. Restore with SHA-256 preflight and an automatic recovery snapshot; explicitly delete only selected archived snapshots after confirmation.

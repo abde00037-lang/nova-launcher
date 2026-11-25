@@ -34,10 +34,8 @@
         <ComboBox x:Name="PresetCombo" Style="{StaticResource DarkComboBox}" Margin="0,2,0,8"
                   SelectionChanged="PresetCombo_SelectionChanged" automation:AutomationProperties.AutomationId="AiProvPreset">
           <ComboBoxItem Content="Choose a provider preset…" IsSelected="True" />
-          <ComboBoxItem Content="AgentRouter · OpenAI-compatible" />
-          <ComboBoxItem Content="AgentRouter · Anthropic" />
-          <ComboBoxItem Content="OneAIKey · OpenAI-compatible" />
-          <ComboBoxItem Content="OneAIKey · Anthropic" />
+          <ComboBoxItem Content="AgentRouter" />
+          <ComboBoxItem Content="OneAIKey" />
         </ComboBox>
         <TextBlock Text="NAME" Style="{StaticResource SectionLabel}" FontSize="8.5" />
         <TextBox x:Name="NameBox" Style="{StaticResource SearchBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvName" />
@@ -45,7 +43,7 @@
         <ComboBox x:Name="ProtocolCombo" Style="{StaticResource DarkComboBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvProtocol" />
         <TextBlock Text="BASE URL" Style="{StaticResource SectionLabel}" FontSize="8.5" />
         <TextBox x:Name="BaseUrlBox" Style="{StaticResource SearchBox}" Margin="0,2,0,8" automation:AutomationProperties.AutomationId="AiProvBase" />
-        <TextBlock Text="MODELS (fallback order, comma separated)" Style="{StaticResource SectionLabel}" FontSize="8.5" />
+        <TextBlock Text="MODEL IDs (copy exact IDs from the selected provider)" Style="{StaticResource SectionLabel}" FontSize="8.5" />
         <TextBox x:Name="ModelsBox" Style="{StaticResource SearchBox}" Margin="0,2,0,8" TextWrapping="Wrap" AcceptsReturn="False"
                  automation:AutomationProperties.AutomationId="AiProvModels" />
         <TextBlock Text="API KEY (leave empty to keep the stored key)" Style="{StaticResource SectionLabel}" FontSize="8.5" />
