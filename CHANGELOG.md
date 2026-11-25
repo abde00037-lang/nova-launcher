@@ -4,6 +4,7 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 
 ## [Unreleased]
 - Relicense the project from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0); all releases except v2.0.0 are offered under CC BY-NC 4.0, while v2.0.0 remains under the MIT License.
+- Add THIRD-PARTY-NOTICES.md and ship it inside release packages (portable root and `bin`) so bundled .NET runtime MIT attribution travels with every package; document runtime-downloaded components (Temurin Java, Minecraft, Forge, loaders, mods).
 
 ## [v2.1.11]
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
