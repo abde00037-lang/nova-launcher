@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Nova.App.ViewModels;
+using Nova.Core;
 
 namespace Nova.App.Views;
 

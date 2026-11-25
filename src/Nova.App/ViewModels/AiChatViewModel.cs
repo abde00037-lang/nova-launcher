@@ -45,7 +45,7 @@ public sealed class AiChatViewModel : INotifyPropertyChanged
 	public event EventHandler? RequestManageProviders;
 
 	/// <summary>Asked before any write tool executes. Null denies every write tool.</summary>
-	public Func<AiToolSpec, AiToolCall, Task<bool>>? ApprovalGate { get; set; }
+	public AiApprovalGate? ApprovalGate { get; set; }
 	public event PropertyChangedEventHandler? PropertyChanged;
 
 	public AiChatViewModel(LauncherPaths paths)
