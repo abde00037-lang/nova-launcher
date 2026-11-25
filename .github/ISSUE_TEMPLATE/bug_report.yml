@@ -7,7 +7,7 @@ body:
     id: version
     attributes:
       label: Nova Launcher Version
-      placeholder: e.g. v2.1.0
+      placeholder: Copy the version shown in Nova, e.g. vX.Y.Z
     validations:
       required: true
   - type: input
@@ -24,8 +24,14 @@ body:
       description: Clear description of the problem and steps to reproduce it.
     validations:
       required: true
+  - type: input
+    id: display
+    attributes:
+      label: Screen resolution and Windows display scaling (for UI issues)
+      placeholder: e.g. 1360x768, 100% scaling; maximized or F11 fullscreen
   - type: textarea
     id: logs
     attributes:
       label: Relevant Logs (logs\nova-ui.log or Diagnostic Stream)
+      description: Remove passwords, tokens, API keys and other private information before posting.
       render: text

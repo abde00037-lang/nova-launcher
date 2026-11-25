@@ -25,6 +25,23 @@ Thank you for your interest in contributing to **Nova Launcher**!
    dotnet build src/Nova.Cli/nova-cli.csproj -c Release -r win-x64 --no-self-contained
    ```
 
+## Regression Tests
+
+Run the regression suites on Windows with .NET 8:
+
+```powershell
+dotnet run --project tests/Nova.Regression/Nova.Regression.csproj -c Release
+dotnet run --project tests/Nova.GuiRegression/Nova.GuiRegression.csproj -c Release
+```
+
+The WPF suite exercises profile switching and page layout, including inner scrolling and resizing. The interactive window test also checks fullscreen, maximizing, and small-window scrolling; it opens a window and needs an interactive Windows desktop. Point it at a disposable build, **not** an existing user installation:
+
+```powershell
+./tests/test-window-layout.ps1 -Exe "<absolute path to disposable build>/Nova.exe"
+```
+
+The test creates temporary fixture data. CI and release workflows also verify the update overlay and installers. Keep independent backups of any real data before manual testing.
+
 ## Pull Request Guidelines
 
 - Keep `Nova.Core` platform-clean and free of UI dependencies so every feature works identically in both `Nova.App` and `nova-cli`.

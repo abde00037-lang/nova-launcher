@@ -35,12 +35,16 @@ The portable package keeps the application and its data under a launcher directo
   <img src="docs/screenshots/showcase.gif" alt="Nova Launcher — Animated Tour" width="96%" />
 </p>
 
+*Screenshots and animations are illustrative captures from an older version; the latest interface and version label may differ.*
+
 ---
 
 ## Latest update — v2.1.11
 
 - Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
 - The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
+
+[Latest release and downloads](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [All releases](https://github.com/abde00037-lang/nova-launcher/releases) · [Full changelog](CHANGELOG.md)
 
 ## Previous update — v2.1.10
 
@@ -91,7 +95,7 @@ Back up the entire instance and worlds before updating. Snapshots and rollback a
 - An isolated test of the published v2.1.6 update resumed after two network interruptions, installed successfully, and preserved test data. [CI](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560382899) and the [release workflow](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560649747) passed.
 - Back up important data first. Rollback is best-effort, not a guarantee against power loss or every failure. A checksum published alongside the package is not an independent digital signature.
 
-**Updating:** Back up your launcher data, then use **Update & Restart** in Nova. If an older updater cannot download v2.1.6, close Nova, download [`nova-bin-win-x64.zip`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/nova-bin-win-x64.zip), verify it against [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/SHA256SUMS.txt), extract it to a temporary folder, and copy its contents into your existing launcher's `bin` folder, replacing application files. Do not overwrite or delete your data folders. Restart Nova and check the displayed version.
+**Updating today:** Back up your launcher data, then use **Update & Restart** in Nova. For downloads and recovery, see the [latest release](https://github.com/abde00037-lang/nova-launcher/releases/latest) rather than installing this historical version. Preserve your data and verify downloads against the checksum file from the same release.
 
 [Download v2.1.6](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.6) · [Full changelog](CHANGELOG.md)
 
