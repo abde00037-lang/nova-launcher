@@ -104,6 +104,51 @@ internal static class Program
     private static Rect Bounds(FrameworkElement element, Window window) =>
         element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
 
+
+    private static async Task AiChatRegression(string root)
+    {
+        int port;
+        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0)) { probe.Start(); port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
+        using var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        var server = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                System.Net.HttpListenerContext ctx;
+                try { ctx = await listener.GetContextAsync(); }
+                catch { break; }
+                _ = Task.Run(() =>
+                {
+                    string body = "{\"choices\":[{\"message\":{\"content\":\"HELLO-FROM-FAKE-PROVIDER\"}}]}";
+                    byte[] bytes = Encoding.UTF8.GetBytes(body);
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "application/json";
+                    ctx.Response.ContentLength64 = bytes.Length;
+                    ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+                    ctx.Response.Close();
+                });
+            }
+        });
+        var paths = new LauncherPaths(Path.Combine(root, "ai-chat"));
+        Directory.CreateDirectory(paths.Root);
+        var vm = new Nova.App.ViewModels.AiChatViewModel(paths);
+        vm.InputText = "hello";
+        await vm.SendAsync();
+        Check(vm.Messages.Last().IsSystem && vm.Messages.Last().Text.Contains("nova-cli ai add"), "chat guides when no provider configured");
+        AiStore.SaveProvider(paths, new AiProvider { Name = "fake", Protocol = AiProtocol.OpenAiCompatible, BaseUrl = $"http://127.0.0.1:{port}/oai/v1", Models = new List<string> { "m1" } });
+        AiStore.SetKey(paths, "fake", "sk-fake-key");
+        vm.RefreshProviders();
+        Check(vm.Providers.Count == 1 && vm.SelectedProvider?.Name == "fake", "chat picks configured provider");
+        vm.InputText = "hello";
+        await vm.SendAsync();
+        Check(vm.Messages.Last().IsAssistant && vm.Messages.Last().Text == "HELLO-FROM-FAKE-PROVIDER", "chat reply rendered from provider");
+        Check(!File.ReadAllText(AiStore.KeysFile(paths)).Contains("sk-fake-key"), "chat key stays encrypted");
+        listener.Stop();
+        try { await server.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
+    }
+
     private static async Task LayoutRegression(string root)
     {
         Environment.SetEnvironmentVariable("NOVA_ROOT", root);
@@ -118,7 +163,7 @@ internal static class Program
             var host = (ContentControl)window.FindName("ContentHost");
             var showView = typeof(MainWindow).GetMethod("ShowView", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new Exception("ShowView missing");
-            foreach (var page in new[] { "Home", "Instances", "Versions", "Account", "Mods", "Store", "Worlds", "Backups", "Logs", "Settings" })
+            foreach (var page in new[] { "Home", "Instances", "Versions", "Account", "Ai", "Mods", "Store", "Worlds", "Backups", "Logs", "Settings" })
             {
                 showView.Invoke(window, new object[] { page });
                 await Task.Delay(250);
@@ -173,7 +218,7 @@ internal static class Program
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
         dispatcher.BeginInvoke(async () =>
         {
-            try { await Run(root); await LayoutRegression(root); exit = 0; }
+            try { await Run(root); await LayoutRegression(root); await AiChatRegression(root); exit = 0; }
             catch (Exception e) { Console.Error.WriteLine(e); }
             finally { dispatcher.BeginInvokeShutdown(DispatcherPriority.Background); }
         });

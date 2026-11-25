@@ -158,6 +158,9 @@ public sealed partial class MainViewModel : ObservableObject
 
 	public LauncherPaths Paths { get; }
 
+	/// <summary>Bring-your-own-key AI chat page state.</summary>
+	public AiChatViewModel AiChat { get; }
+
 	public ObservableCollection<InstanceVm> Instances { get; }
 
 	public ObservableCollection<ConsoleLine> ConsoleLines { get; }
@@ -1407,6 +1410,7 @@ public sealed partial class MainViewModel : ObservableObject
 		StoreVersionChoices = new ObservableCollection<StoreVersionVm>();
 		_storeSort = "downloads";
 		Paths = paths;
+		AiChat = new AiChatViewModel(paths);
 		Settings = LauncherSettings.Load(paths);
 		JavaLocator.RegisterRoot(paths.JavaHome);
 		_accountStore = new AccountStore(paths);

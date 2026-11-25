@@ -272,7 +272,8 @@ Nova can talk to your own AI endpoint (no bundled keys, no Nova servers):
 - **Keys:** stored per provider with Windows DPAPI under `ai/keys.dat` in the launcher root; never written in plaintext and never sent anywhere except the provider you configured.
 - **CLI today:** `nova-cli ai add <name> <openai|anthropic> <baseUrl> <models,csv>`, then `ai providers`, `ai models <name>`, `ai chat <name> <text>` (`--system`, `--max-tokens`, `--timeout`), `ai key <name>`, `ai remove <name>`.
 - **Privacy:** chat text and any logs you paste go to your provider. Review content before sending; the assistant never uploads worlds, accounts, or mods on its own.
-- **Roadmap:** the in-app chat page and supervised agent actions (install mods, tune memory, build packs) will reuse this layer with confirmations and snapshots; nothing executes automatically today.
+- **In-app chat:** the Workbench **AI Chat** page talks to the selected provider (provider picker plus MANAGE PROVIDERS dialog for name, protocol, base URL, model fallback chain and key).
+- **Roadmap:** supervised agent actions (install mods, tune memory, build packs) will reuse this layer with confirmations and snapshots; nothing executes automatically today.
 
 ## License
 
