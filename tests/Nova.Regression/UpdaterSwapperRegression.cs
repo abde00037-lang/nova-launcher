@@ -7,7 +7,15 @@ static class UpdaterSwapperRegression
     {
         for (int i = 0; i < 300; i++)
         {
-            if (File.Exists(path)) { try { return File.ReadAllText(path); } catch (IOException) { } }
+            if (File.Exists(path))
+            {
+                try
+                {
+                    string value = File.ReadAllText(path);
+                    if (value.StartsWith("SUCCESS:") || value.StartsWith("ROLLED_BACK:") || value.StartsWith("ROLLBACK_FAILED:")) return value;
+                }
+                catch (IOException) { }
+            }
             await Task.Delay(100);
         }
         throw new Exception("Updater swapper did not report a result");
@@ -24,7 +32,8 @@ static class UpdaterSwapperRegression
         File.WriteAllText(Path.Combine(target, "data", "sentinel.txt"), "safe");
         LauncherUpdater.LaunchDetachedSwapper(stage, target, 0, false);
         string result = await WaitResult(status);
-        Check(result.StartsWith("SUCCESS:") && File.ReadAllText(Path.Combine(target, "Nova.exe")) == "new" && File.ReadAllText(Path.Combine(target, "data", "sentinel.txt")) == "safe", "transactional swapper succeeds and preserves data");
+        if (!result.StartsWith("SUCCESS:")) throw new Exception("Swapper result: " + result);
+        Check(File.ReadAllText(Path.Combine(target, "Nova.exe")) == "new" && File.ReadAllText(Path.Combine(target, "data", "sentinel.txt")) == "safe", "transactional swapper succeeds and preserves data");
         // An existing file at the parent of a later destination triggers a copy failure after the first file was changed.
         File.Delete(status); Directory.Delete(stage, true); Directory.CreateDirectory(Path.Combine(stage, "nested"));
         File.WriteAllText(Path.Combine(stage, "a.txt"), "new-a"); File.WriteAllText(Path.Combine(stage, "nested", "z.txt"), "new-z");
