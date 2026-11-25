@@ -4,6 +4,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -48,9 +50,10 @@ public partial class MainWindow : Window
 		//IL_0160: Unknown result type (might be due to invalid IL or missing references)
 		//IL_016a: Expected Obj, but got Unknown
 		InitializeComponent();
+        SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowMessageHook);
 		Rect workArea = SystemParameters.WorkArea;
-		((FrameworkElement)this).Width = Math.Min(((FrameworkElement)this).Width, Math.Max(1060.0, workArea.Width - 30.0));
-		((FrameworkElement)this).Height = Math.Min(((FrameworkElement)this).Height, Math.Max(620.0, workArea.Height - 30.0));
+		((FrameworkElement)this).Width = Math.Min(((FrameworkElement)this).Width, Math.Max(MinWidth, workArea.Width - 30.0));
+		((FrameworkElement)this).Height = Math.Min(((FrameworkElement)this).Height, Math.Max(MinHeight, workArea.Height - 30.0));
 		((Window)this).Left = workArea.Left + (workArea.Width - ((FrameworkElement)this).Width) / 2.0;
 		((Window)this).Top = workArea.Top + (workArea.Height - ((FrameworkElement)this).Height) / 2.0;
 		_viewModel = new MainViewModel(ResolveRoot());
@@ -206,6 +209,19 @@ public partial class MainWindow : Window
 
 	protected override void OnPreviewKeyDown(KeyEventArgs e)
 	{
+        if (e.Key == Key.F11)
+        {
+            ToggleFullScreen();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape && _isFullScreen)
+        {
+            ToggleFullScreen();
+            e.Handled = true;
+            return;
+        }
+
 		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0008: Invalid comparison between Unknown and I4
 		//IL_0010: Unknown result type (might be due to invalid IL or missing references)
@@ -347,9 +363,10 @@ public partial class MainWindow : Window
 		//IL_0011: Invalid comparison between Unknown and I4
 		if (e.ClickCount == 2)
 		{
-			((Window)this).WindowState = (WindowState)(((int)((Window)this).WindowState != 2) ? 2 : 0);
+            if (_isFullScreen) ToggleFullScreen();
+			WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 		}
-		else if ((int)e.ButtonState == 1)
+		else if ((int)e.ButtonState == 1 && !_isFullScreen)
 		{
 			((Window)this).DragMove();
 		}
@@ -360,12 +377,106 @@ public partial class MainWindow : Window
 		((Window)this).WindowState = (WindowState)1;
 	}
 
-	private void Maximize_Click(object sender, RoutedEventArgs e)
-	{
-		//IL_0002: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0008: Invalid comparison between Unknown and I4
-		((Window)this).WindowState = (WindowState)(((int)((Window)this).WindowState != 2) ? 2 : 0);
-	}
+	private bool _isFullScreen;
+    private WindowState _preFullScreenState;
+    private Rect _preFullScreenBounds;
+    private ResizeMode _preFullScreenResizeMode;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MinMaxInfo
+    {
+        public NativePoint Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+    }
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+
+    private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WmGetMinMaxInfo = 0x24;
+        if (message != WmGetMinMaxInfo || _isFullScreen) return IntPtr.Zero;
+        var monitor = MonitorFromWindow(hwnd, 2);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return IntPtr.Zero;
+        var bounds = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        bounds.MaxPosition.X = info.Work.Left - info.Monitor.Left;
+        bounds.MaxPosition.Y = info.Work.Top - info.Monitor.Top;
+        bounds.MaxSize.X = info.Work.Right - info.Work.Left;
+        bounds.MaxSize.Y = info.Work.Bottom - info.Work.Top;
+        Marshal.StructureToPtr(bounds, lParam, false);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    private void ToggleFullScreen()
+    {
+        if (_isFullScreen)
+        {
+            _isFullScreen = false;
+            ResizeMode = _preFullScreenResizeMode;
+            Left = _preFullScreenBounds.Left;
+            Top = _preFullScreenBounds.Top;
+            Width = _preFullScreenBounds.Width;
+            Height = _preFullScreenBounds.Height;
+            WindowState = _preFullScreenState;
+            FullscreenButton.ToolTip = "Full screen (F11)";
+            return;
+        }
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero) return;
+        var monitor = MonitorFromWindow(handle, 2); // MONITOR_DEFAULTTONEAREST
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return;
+        _preFullScreenState = WindowState;
+        _preFullScreenBounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+        _preFullScreenResizeMode = ResizeMode;
+        WindowState = WindowState.Normal;
+        ResizeMode = ResizeMode.NoResize;
+        var rect = info.Monitor;
+        if (!SetWindowPos(handle, IntPtr.Zero, rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, 0x0010 | 0x0004 | 0x0020))
+        {
+            ResizeMode = _preFullScreenResizeMode;
+            WindowState = _preFullScreenState;
+            return;
+        }
+        _isFullScreen = true;
+        FullscreenButton.ToolTip = "Exit full screen (F11 or Esc)";
+    }
+
+    private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    private void WorkspaceScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        // Keep the page bounded so its own scrolling/virtualized lists still work.
+        if (e.ViewportWidth <= 0 || e.ViewportHeight <= 0) return;
+        double width = Math.Max(ContentHost.MinWidth, e.ViewportWidth);
+        double height = Math.Max(ContentHost.MinHeight, e.ViewportHeight);
+        if (Math.Abs(ContentHost.Width - width) > 0.5 || double.IsNaN(ContentHost.Width)) ContentHost.Width = width;
+        if (Math.Abs(ContentHost.Height - height) > 0.5 || double.IsNaN(ContentHost.Height)) ContentHost.Height = height;
+    }
+
+    private void Maximize_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isFullScreen) ToggleFullScreen();
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
 
 	private void Close_Click(object sender, RoutedEventArgs e)
 	{

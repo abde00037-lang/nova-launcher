@@ -2,6 +2,12 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.10]
+- Add a fullscreen button and F11 shortcut (F11 or Escape exits fullscreen); restore the previous window state afterward.
+- Correct maximized window bounds for the current monitor's work area, keeping the Windows taskbar usable.
+- Lower the minimum window size, make the navigation rail scrollable, and provide a scrollable workspace when the available area is too small for a page.
+- Designed for Windows per-monitor DPI; the small-window fallback uses scrollbars rather than claiming every layout reflows at every resolution.
+
 ## [v2.1.9]
 - Reduce launcher work when switching large modpacks: scan installed mod metadata only when the Mods page is open, and cancel outdated background scans when changing profiles or pages.
 - Load world names and snapshots off the UI thread; avoid walking every world file during normal selection. **CALCULATE SIZES** computes world disk usage on request.

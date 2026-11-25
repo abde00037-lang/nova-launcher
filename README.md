@@ -37,7 +37,13 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.9
+## Latest update — v2.1.10
+
+- Use the fullscreen button or **F11** to fill the current monitor; press **F11** or **Esc** to exit fullscreen.
+- Maximized windows respect the monitor work area and taskbar. On smaller windows, use the workspace and navigation scrollbars to reach content.
+- Windows display scaling is supported; very small workspaces may require scrolling instead of reflowing every control.
+
+## Previous update — v2.1.9
 
 - Large modpacks and world lists use virtualized rows; outdated scans are cancelled when switching profiles or pages.
 - Worlds load without recursively counting all their files. Use **CALCULATE SIZES** on the Worlds page when you need disk usage; close Minecraft before doing so.
