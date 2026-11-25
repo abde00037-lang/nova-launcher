@@ -271,7 +271,7 @@ Nova Launcher's own source code, installer scripts, documentation, and repositor
 - **Attribution:** keep the copyright notice and a link to the license when you share or adapt the project.
 - **NonCommercial:** use that is primarily intended for commercial advantage or monetary compensation is not permitted without separate written permission from the copyright holder.
 - **Scope note:** CC BY-NC 4.0 is not an OSI-approved open-source license, and Creative Commons does not recommend its licenses for software; the copyright holder chose it for this project.
-- **Earlier releases:** versions up to and including v2.1.11 were published under the MIT License, and copies of those releases remain available under MIT terms. Commits and releases from the relicensing commit onward are under CC BY-NC 4.0.
+- **Earlier releases:** all releases except [v2.0.0](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.0.0) are now offered under CC BY-NC 4.0 as well; v2.0.0 remains under the MIT License. Copies of releases that were distributed under MIT before this change keep the MIT grant for those copies.
 - **Third-party material:** bundled or downloaded components keep their own licenses — for example the .NET runtime (MIT), Adoptium Java (GPL-2.0 with Classpath Exception), Minecraft and its assets (Mojang EULA), and mods (their authors' licenses). The CC license covers only Nova's own material.
 
 *Nova Launcher is an independent source-available project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
