@@ -2149,6 +2149,36 @@ public sealed partial class MainViewModel : ObservableObject
 		finally { IsModUpdateBusy = false; }
 	}
 
+	public async Task<string> CreateModSnapshotAsync(InstanceVm instance)
+	{
+		if (Selected != instance || HasActiveModOperations || IsGameRunning)
+			throw new InvalidOperationException("Select this instance and close Minecraft before creating a mod snapshot.");
+		IsModUpdateBusy = true;
+		try
+		{
+			string folder = await Task.Run(() => ModSnapshot.CreateAsync(Path.Combine(instance.GameDirectory, "mods")));
+			string id = Path.GetFileName(folder);
+			AppendConsole("OK", "mod snapshot created: " + id);
+			return id;
+		}
+		finally { IsModUpdateBusy = false; }
+	}
+
+	public async Task<string> RestoreModSnapshotAsync(InstanceVm instance, string snapshotId)
+	{
+		if (Selected != instance || HasActiveModOperations || IsGameRunning)
+			throw new InvalidOperationException("Select this instance and close Minecraft before restoring a mod snapshot.");
+		IsModUpdateBusy = true;
+		try
+		{
+			string result = await Task.Run(() => ModSnapshot.RestoreAsync(Path.Combine(instance.GameDirectory, "mods"), snapshotId));
+			AppendConsole("OK", result);
+			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
+			return result;
+		}
+		finally { IsModUpdateBusy = false; }
+	}
+
 	public async Task UpdateAllModsAsync()
 	{
 		InstanceVm? selected = Selected;

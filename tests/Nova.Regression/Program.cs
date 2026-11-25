@@ -289,6 +289,14 @@ try
         byte[] dupOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar"));
         string snap = await ModSnapshot.CreateAsync(tbMods);
         string snapId = Path.GetFileName(snap);
+        var listedSnapshots = await ModSnapshot.ListAsync(tbMods);
+        Check(listedSnapshots.Count == 1 && listedSnapshots[0].Id == snapId && listedSnapshots[0].FileCount >= 2,
+            "mod snapshot list exposes valid snapshots and file counts");
+        string corruptSnapshot = Path.Combine(tbMods, ".nova-mod-snapshots", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(corruptSnapshot);
+        File.WriteAllText(Path.Combine(corruptSnapshot, "manifest.json"),
+            """{"CreatedUtc":"2026-01-01T00:00:00Z","Files":[{"FileName":"../escape.jar","Sha256":"bad"}]}""");
+        Check((await ModSnapshot.ListAsync(tbMods)).Count == 1, "mod snapshot list ignores malformed or unsafe manifests");
         File.WriteAllBytes(Path.Combine(tbMods, "dup-a.jar"), Encoding.UTF8.GetBytes("changed-content"));
         File.WriteAllText(Path.Combine(tbMods, "extra-mod.jar"), "new");
         string restoreOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"" + snapId + "\"}"));

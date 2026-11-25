@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 namespace Nova.Core;
 
+public sealed record ModSnapshotInfo(string Id, DateTimeOffset CreatedUtc, int FileCount);
+
 /// <summary>A verified copy of the instance's top-level mod files, not a world or full instance backup.</summary>
 public static class ModSnapshot
 {
@@ -19,6 +21,35 @@ public static class ModSnapshot
     {
         await using FileStream stream = File.OpenRead(path);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Lists well-formed snapshot manifests. File contents are verified when a snapshot is restored.</summary>
+    public static async Task<IReadOnlyList<ModSnapshotInfo>> ListAsync(string modsDirectory, CancellationToken ct = default)
+    {
+        string root = SafePath.ResolveWithin(modsDirectory, ".nova-mod-snapshots");
+        if (!Directory.Exists(root)) return Array.Empty<ModSnapshotInfo>();
+        var result = new List<ModSnapshotInfo>();
+        foreach (string directory in Directory.EnumerateDirectories(root))
+        {
+            ct.ThrowIfCancellationRequested();
+            string id = Path.GetFileName(directory);
+            if (id.Length != 32 || !Guid.TryParseExact(id, "N", out _)) continue;
+            try
+            {
+                SafePath.RejectLinks(modsDirectory, directory);
+                string manifestPath = SafePath.ResolveWithin(directory, "manifest.json");
+                if (!File.Exists(manifestPath)) continue;
+                Manifest? manifest = JsonSerializer.Deserialize<Manifest>(await File.ReadAllTextAsync(manifestPath, ct).ConfigureAwait(false));
+                if (manifest?.Files == null || manifest.Files.Any(entry =>
+                    string.IsNullOrWhiteSpace(entry.FileName) || Path.GetFileName(entry.FileName) != entry.FileName ||
+                    !ModManager.IsModFile(entry.FileName) || entry.Sha256.Length != 64 ||
+                    !entry.Sha256.All(Uri.IsHexDigit))) continue;
+                result.Add(new ModSnapshotInfo(id, manifest.CreatedUtc, manifest.Files.Count));
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { /* Ignore incomplete, corrupt, or linked snapshot folders; restore verifies independently. */ }
+        }
+        return result.OrderByDescending(snapshot => snapshot.CreatedUtc).ToArray();
     }
 
     public static async Task<string> CreateAsync(string modsDirectory, CancellationToken ct = default)

@@ -73,6 +73,16 @@ public partial class ModsView : UserControl
 		}
 	}
 
+	private void ModSnapshots_Click(object sender, RoutedEventArgs e)
+	{
+		if (DataContext is not MainViewModel vm || vm.Selected == null)
+		{
+			MessageBox.Show("Select an instance first.", "Nova", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
+		}
+		new ModSnapshotsWindow(vm, vm.Selected) { Owner = Window.GetWindow(this) }.ShowDialog();
+	}
+
 	private void OpenFolder_Click(object sender, RoutedEventArgs e)
 	{
 		string? gameDir = (DataContext as MainViewModel)?.Selected?.GameDirectory;
