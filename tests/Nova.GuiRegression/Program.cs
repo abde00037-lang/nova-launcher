@@ -111,6 +111,7 @@ internal static class Program
         int port;
         using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0)) { probe.Start(); port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
         using var listener = new System.Net.HttpListener();
+        string? capturedRequest = null;
         listener.Prefixes.Add($"http://127.0.0.1:{port}/");
         listener.Start();
         var server = Task.Run(async () =>
@@ -122,6 +123,8 @@ internal static class Program
                 catch { break; }
                 _ = Task.Run(() =>
                 {
+                    using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
+                        capturedRequest = reader.ReadToEnd();
                     string body = "{\"choices\":[{\"message\":{\"content\":\"HELLO-FROM-FAKE-PROVIDER\"}}]}";
                     byte[] bytes = Encoding.UTF8.GetBytes(body);
                     ctx.Response.StatusCode = 200;
@@ -145,6 +148,10 @@ internal static class Program
         vm.InputText = "hello";
         await vm.SendAsync();
         Check(vm.Messages.Last().IsAssistant && vm.Messages.Last().Text == "HELLO-FROM-FAKE-PROVIDER", "chat reply rendered from provider");
+        Check(capturedRequest != null && capturedRequest.Contains("check_mod_updates") &&
+              capturedRequest.Contains("update_mods") && capturedRequest.Contains("install_mod") &&
+              capturedRequest.Contains("restore_mods") && capturedRequest.Contains("explicit approval"),
+              "chat system prompt describes current tools and approval rules");
         Check(!File.ReadAllText(AiStore.KeysFile(paths)).Contains("sk-fake-key"), "chat key stays encrypted");
         listener.Stop();
         try { await server.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }

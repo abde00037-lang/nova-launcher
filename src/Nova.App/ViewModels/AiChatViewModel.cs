@@ -28,10 +28,10 @@ public sealed class AiChatMessage
 	public string Label => IsUser ? "YOU" : (IsAssistant ? "AI" + (string.IsNullOrEmpty(Model) ? string.Empty : " · " + Model) : "NOVA");
 }
 
-/// <summary>Bring-your-own-key chat over the Nova.Core AI layer. Chat only: no launcher action executes from here yet.</summary>
+/// <summary>Bring-your-own-key chat over Nova.Core with supervised launcher tools; every write tool requires explicit user approval.</summary>
 public sealed class AiChatViewModel : INotifyPropertyChanged
 {
-	private const string SystemPrompt = "You are the Nova Workbench assistant inside Nova Launcher, a portable Minecraft launcher for Windows (Vanilla/Forge/Fabric/NeoForge). Help with modpacks, mods, loaders, crash reports, performance tuning and launcher features. Be concise and practical. You may call launcher tools: read-only list_instances, instance_detail, analyze_crash, mod_conflicts, read_log; write tools toggle_mod and set_memory_mb run only after the user approves them in a confirmation dialog. Prefer tool output over guessing, and never ask for API keys, passwords or tokens.";
+	private const string SystemPrompt = "You are the Nova Workbench assistant inside Nova Launcher, a portable Minecraft launcher for Windows (Vanilla/Forge/Fabric/NeoForge). Help with modpacks, mods, loaders, crash reports, performance tuning and launcher features. Be concise and practical. Read-only tools list_instances, instance_detail, analyze_crash, mod_conflicts, read_log and check_mod_updates may run automatically. Every write tool (toggle_mod, set_memory_mb, update_mods, install_mod, export_pack and restore_mods) requires the user's explicit approval; never imply a write happened before approval. update_mods and install_mod create a verified mod snapshot before changing files. Mod snapshots cover mod files only, not worlds or configs. Prefer tool output over guessing, and never ask for API keys, passwords or tokens.";
 
 	private readonly LauncherPaths _paths;
 	private AiProvider? _selectedProvider;
