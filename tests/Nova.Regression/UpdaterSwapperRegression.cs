@@ -30,8 +30,16 @@ static class UpdaterSwapperRegression
         File.WriteAllText(Path.Combine(target, "Nova.exe"), "old");
         Directory.CreateDirectory(Path.Combine(target, "data"));
         File.WriteAllText(Path.Combine(target, "data", "sentinel.txt"), "safe");
-        LauncherUpdater.LaunchDetachedSwapper(stage, target, 0, false);
-        string result = await WaitResult(status);
+        string? oldModulePath = Environment.GetEnvironmentVariable("PSModulePath");
+        string result;
+        try
+        {
+            // The parent can be PowerShell 7 with a PSModulePath unusable by Windows PowerShell 5.
+            Environment.SetEnvironmentVariable("PSModulePath", Path.Combine(root, "missing-ps-modules"));
+            LauncherUpdater.LaunchDetachedSwapper(stage, target, 0, false);
+            result = await WaitResult(status);
+        }
+        finally { Environment.SetEnvironmentVariable("PSModulePath", oldModulePath); }
         if (!result.StartsWith("SUCCESS:")) throw new Exception("Swapper result: " + result);
         Check(File.ReadAllText(Path.Combine(target, "Nova.exe")) == "new" && File.ReadAllText(Path.Combine(target, "data", "sentinel.txt")) == "safe", "transactional swapper succeeds and preserves data");
         // An existing file at the parent of a later destination triggers a copy failure after the first file was changed.

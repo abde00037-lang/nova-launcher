@@ -307,6 +307,12 @@ function CheckLinks([string]$base, [string]$path) {
         }
     }
 }
+function FileSha([string]$path) {
+    $stream = [IO.File]::OpenRead($path)
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($hasher.ComputeHash($stream)) }
+    finally { $hasher.Dispose(); $stream.Dispose() }
+}
 function CopyRetry([string]$from, [string]$to) {
     for ($i=0; $i -lt 4; $i++) {
         try { Copy-Item -LiteralPath $from -Destination $to -Force -ErrorAction Stop; return }
@@ -348,7 +354,7 @@ try {
         $saved = Join-Path $backup ([string]$i)
         if ($old) {
             CopyRetry $dest $saved
-            if ((Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash) { throw 'Could not verify update backup' }
+            if ((FileSha $dest) -ne (FileSha $saved)) { throw 'Could not verify update backup' }
         }
         $records.Add([pscustomobject]@{ Source=$f.FullName; Target=$dest; Saved=$saved; Existed=$old })
         $i++
@@ -359,7 +365,7 @@ try {
         if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
         $applied.Add($record)
         CopyRetry $record.Source $record.Target
-        if ((Get-FileHash -LiteralPath $record.Source -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $record.Target -Algorithm SHA256).Hash) { throw 'Installed file verification failed' }
+        if ((FileSha $record.Source) -ne (FileSha $record.Target)) { throw 'Installed file verification failed' }
     }
     Log 'SUCCESS: update installed'
     try { Remove-Item -LiteralPath $backup -Recurse -Force } catch { }
