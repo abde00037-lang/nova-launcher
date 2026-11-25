@@ -191,6 +191,99 @@ try
         aiListener.Stop();
         try { await aiServer.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
 
+        // --- Supervised agent loop: fake provider issues tool calls; approval gate denies writes ---
+        int agPort;
+        using (var probe2 = new TcpListener(IPAddress.Loopback, 0)) { probe2.Start(); agPort = ((IPEndPoint)probe2.LocalEndpoint).Port; probe2.Stop(); }
+        using var agListener = new HttpListener();
+        agListener.Prefixes.Add($"http://127.0.0.1:{agPort}/");
+        agListener.Start();
+        int agStep = 0;
+        var agServer = Task.Run(async () =>
+        {
+            while (agListener.IsListening)
+            {
+                HttpListenerContext ctx;
+                try { ctx = await agListener.GetContextAsync(); }
+                catch { break; }
+                _ = Task.Run(() =>
+                {
+                    string path = ctx.Request.Url!.AbsolutePath;
+                    int step = Interlocked.Increment(ref agStep);
+                    string body;
+                    if (path == "/ag/v1/chat/completions")
+                    {
+                        body = step == 1
+                            ? "{\"choices\":[{\"message\":{\"content\":null,\"tool_calls\":[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"list_instances\",\"arguments\":\"{}\"}},{\"id\":\"c2\",\"type\":\"function\",\"function\":{\"name\":\"toggle_mod\",\"arguments\":\"{\\\"id\\\":\\\"t1\\\",\\\"file\\\":\\\"dummy-mod.jar\\\",\\\"enabled\\\":false}\"}}]}}]}"
+                            : "{\"choices\":[{\"message\":{\"content\":\"AGENT-DONE\"}}]}";
+                    }
+                    else if (path == "/ag/v1/messages")
+                    {
+                        body = step == 1
+                            ? "{\"content\":[{\"type\":\"tool_use\",\"id\":\"a1\",\"name\":\"list_instances\",\"input\":{}}]}"
+                            : "{\"content\":[{\"type\":\"text\",\"text\":\"ANTH-AGENT-DONE\"}]}";
+                    }
+                    else { body = "{\"error\":\"nf\"}"; ctx.Response.StatusCode = 404; }
+                    byte[] bytes = Encoding.UTF8.GetBytes(body);
+                    if (ctx.Response.StatusCode == 200) ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "application/json";
+                    ctx.Response.ContentLength64 = bytes.Length;
+                    ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+                    ctx.Response.Close();
+                });
+            }
+        });
+        var agPaths = new LauncherPaths(Path.Combine(root, "ai-agent"));
+        Directory.CreateDirectory(agPaths.Root);
+        List<string> handled = new List<string>();
+        List<string> denied = new List<string>();
+        AiToolHandler handler = (call, ct) => { handled.Add(call.Name); return Task.FromResult(call.Name == "list_instances" ? "INSTANCE-FAKE" : "SHOULD-NOT-RUN"); };
+        AiApprovalGate gate = (spec, call, ct) => { denied.Add(call.Name); return Task.FromResult(false); };
+        using (var agClient = new AiClient(30))
+        {
+            var agAgent = new AiAgent(agClient);
+            var agProv = new AiProvider { Name = "ag", Protocol = AiProtocol.OpenAiCompatible, BaseUrl = $"http://127.0.0.1:{agPort}/ag/v1", Models = new List<string> { "m" } };
+            var agResult = await agAgent.RunAsync(agProv, "k", "sys", "task", handler, gate);
+            Check(agResult.Text == "AGENT-DONE", "agent loop finishes with final answer");
+            Check(handled.Contains("list_instances") && !handled.Contains("toggle_mod"), "agent runs read-only tool only");
+            Check(denied.Contains("toggle_mod") && agResult.Trace.Any(t => t.Contains("DENIED")), "agent write tool denied by gate");
+            var anthProv = new AiProvider { Name = "aga", Protocol = AiProtocol.Anthropic, BaseUrl = $"http://127.0.0.1:{agPort}/ag", Models = new List<string> { "m" } };
+            var anthResult = await agAgent.RunAsync(anthProv, "k", "sys", "task", handler, gate);
+            Check(anthResult.Text == "ANTH-AGENT-DONE", "agent loop works over anthropic protocol");
+        }
+        agListener.Stop();
+        try { await agServer.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
+
+        // --- AiToolbox behaviours on a disposable instance ---
+        var tbPaths = new LauncherPaths(Path.Combine(root, "ai-tools"));
+        Directory.CreateDirectory(tbPaths.Root);
+        string tbGame = Path.Combine(tbPaths.Root, "instances", "t1", "game");
+        string tbMods = Path.Combine(tbGame, "mods");
+        Directory.CreateDirectory(tbMods);
+        Directory.CreateDirectory(Path.Combine(tbGame, "logs"));
+        var tbStore = new InstanceStore(tbPaths);
+        tbStore.Save(new InstanceConfig { Id = "t1", Name = "T1", GameDirectory = tbGame, VersionId = "1.20.1-fabric" });
+        File.WriteAllText(Path.Combine(tbGame, "logs", "latest.log"), "line1\nauthorization: supersecrettoken\nline3\n");
+        string logOut = AiToolbox.Handle(tbPaths, new AiToolCall("x", "read_log", "{\"id\":\"t1\",\"lines\":20}"));
+        Check(logOut.Contains("REDACTED") && !logOut.Contains("supersecrettoken"), "agent read_log redacts secrets");
+        File.WriteAllText(Path.Combine(tbMods, "dummy-mod.jar"), "x");
+        AiToolbox.Handle(tbPaths, new AiToolCall("x", "toggle_mod", "{\"id\":\"t1\",\"file\":\"dummy-mod.jar\",\"enabled\":false}"));
+        Check(File.Exists(Path.Combine(tbMods, "dummy-mod.jar.disabled")), "agent toggle_mod disables mod file");
+        AiToolbox.Handle(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":8192}"));
+        Check(tbStore.Find("t1")!.MemoryMb == 8192, "agent set_memory_mb persists");
+        Check(AiToolbox.Handle(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":99}")).StartsWith("memory must"), "agent memory out of range rejected");
+        void FakeModJar(string file, string modid)
+        {
+            using var fs = File.Create(Path.Combine(tbMods, file));
+            using var zip = new ZipArchive(fs, ZipArchiveMode.Create);
+            var entry = zip.CreateEntry("fabric.mod.json");
+            using var writer = new StreamWriter(entry.Open());
+            writer.Write("{\"schemaVersion\":1,\"id\":\"" + modid + "\",\"version\":\"1.0\"}");
+        }
+        FakeModJar("dup-a.jar", "dupmod");
+        FakeModJar("dup-b.jar", "dupmod");
+        string conflicts = AiToolbox.Handle(tbPaths, new AiToolCall("x", "mod_conflicts", "{\"id\":\"t1\"}"));
+        Check(conflicts.Contains("duplicate modid dupmod"), "agent mod_conflicts finds duplicate modids");
+
     }
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

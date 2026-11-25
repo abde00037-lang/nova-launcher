@@ -273,7 +273,8 @@ Nova can talk to your own AI endpoint (no bundled keys, no Nova servers):
 - **CLI today:** `nova-cli ai add <name> <openai|anthropic> <baseUrl> <models,csv>`, then `ai providers`, `ai models <name>`, `ai chat <name> <text>` (`--system`, `--max-tokens`, `--timeout`), `ai key <name>`, `ai remove <name>`.
 - **Privacy:** chat text and any logs you paste go to your provider. Review content before sending; the assistant never uploads worlds, accounts, or mods on its own.
 - **In-app chat:** the Workbench **AI Chat** page talks to the selected provider (provider picker plus MANAGE PROVIDERS dialog for name, protocol, base URL, model fallback chain and key).
-- **Roadmap:** supervised agent actions (install mods, tune memory, build packs) will reuse this layer with confirmations and snapshots; nothing executes automatically today.
+- **Supervised agent:** the chat and `nova-cli ai agent` can call launcher tools. Read-only tools (list profiles, profile detail, crash analysis, duplicate/dependency conflict scan, redacted log tail) run automatically; changing tools (toggle a mod, set memory) only run after an approval dialog (`[y/N]` in the CLI). Denied actions do nothing.
+- **Roadmap:** more write tools (install mods, build packs) with automatic snapshots will reuse the same approval gate.
 
 ## License
 

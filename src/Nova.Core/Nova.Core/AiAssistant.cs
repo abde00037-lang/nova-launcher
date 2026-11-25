@@ -287,6 +287,112 @@ public sealed class AiClient : IDisposable
 		return new AiReply { Model = model, Text = text };
 	}
 
+	/// <summary>One agent step: sends the whole history plus tool specs and returns text and/or tool calls.</summary>
+	public async Task<AiAgentTurn> ChatWithToolsAsync(AiProvider provider, string key, List<AiAgentMessage> history, List<AiToolSpec> tools, CancellationToken ct = default)
+	{
+		string baseUri = NormalizeBase(provider.BaseUrl);
+		string url;
+		string payload;
+		if (provider.Protocol == AiProtocol.Anthropic)
+		{
+			url = baseUri + "/v1/messages";
+			List<object> messages = new List<object>();
+			string? system = null;
+			foreach (AiAgentMessage msg in history)
+			{
+				if (msg.Role == "system") { system = msg.Text; continue; }
+				if (msg.Role == "assistant")
+				{
+					List<object> blocks = new List<object>();
+					if (!string.IsNullOrEmpty(msg.Text)) blocks.Add(new { type = "text", text = msg.Text });
+					if (msg.Calls != null) foreach (AiToolCall call in msg.Calls) blocks.Add(new { type = "tool_use", id = call.Id, name = call.Name, input = JsonDocument.Parse(string.IsNullOrEmpty(call.ArgumentsJson) ? "{}" : call.ArgumentsJson).RootElement });
+					messages.Add(new { role = "assistant", content = blocks });
+				}
+				else if (msg.Results != null)
+				{
+					List<object> blocks = msg.Results.Select(r => (object)new { type = "tool_result", tool_use_id = r.CallId, content = r.Text }).ToList();
+					messages.Add(new { role = "user", content = blocks });
+				}
+				else
+				{
+					messages.Add(new { role = "user", content = msg.Text ?? string.Empty });
+				}
+			}
+			payload = JsonSerializer.Serialize(new
+			{
+				model = provider.Models.FirstOrDefault() ?? string.Empty,
+				max_tokens = 1024,
+				system,
+				messages,
+				tools = tools.Select(t => new { name = t.Name, description = t.Description, input_schema = JsonDocument.Parse(t.ParametersSchema).RootElement })
+			});
+		}
+		else
+		{
+			url = baseUri + "/chat/completions";
+			List<object> messages = new List<object>();
+			foreach (AiAgentMessage msg in history)
+			{
+				if (msg.Results != null)
+				{
+					foreach (AiToolResult result in msg.Results) messages.Add(new { role = "tool", tool_call_id = result.CallId, content = result.Text });
+					continue;
+				}
+				if (msg.Role == "assistant" && msg.Calls != null && msg.Calls.Count > 0)
+				{
+					messages.Add(new
+					{
+						role = "assistant",
+						content = msg.Text,
+						tool_calls = msg.Calls.Select(c => new { id = c.Id, type = "function", function = new { name = c.Name, arguments = string.IsNullOrEmpty(c.ArgumentsJson) ? "{}" : c.ArgumentsJson } })
+					});
+					continue;
+				}
+				messages.Add(new { role = msg.Role, content = msg.Text ?? string.Empty });
+			}
+			payload = JsonSerializer.Serialize(new
+			{
+				model = provider.Models.FirstOrDefault() ?? string.Empty,
+				max_tokens = 1024,
+				messages,
+				tools = tools.Select(t => new { type = "function", function = new { name = t.Name, description = t.Description, parameters = JsonDocument.Parse(t.ParametersSchema).RootElement } })
+			});
+		}
+		using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, url);
+		ApplyAuth(request, provider.Protocol, key);
+		request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+		using HttpResponseMessage response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+		string body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode) throw new AiException("HTTP " + (int)response.StatusCode + ": " + Truncate(body));
+		using JsonDocument doc = JsonDocument.Parse(body);
+		AiAgentTurn turn = new AiAgentTurn();
+		if (provider.Protocol == AiProtocol.Anthropic)
+		{
+			StringBuilder builder = new StringBuilder();
+			foreach (JsonElement block in doc.RootElement.GetProperty("content").EnumerateArray())
+			{
+				string type = block.GetProperty("type").GetString() ?? string.Empty;
+				if (type == "text") builder.Append(block.GetProperty("text").GetString());
+				else if (type == "tool_use") turn.Calls.Add(new AiToolCall(block.GetProperty("id").GetString() ?? string.Empty, block.GetProperty("name").GetString() ?? string.Empty, block.GetProperty("input").GetRawText()));
+			}
+			turn.Text = builder.ToString();
+		}
+		else
+		{
+			JsonElement message = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
+			if (message.TryGetProperty("content", out JsonElement content) && content.ValueKind == JsonValueKind.String) turn.Text = content.GetString() ?? string.Empty;
+			if (message.TryGetProperty("tool_calls", out JsonElement calls) && calls.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement call in calls.EnumerateArray())
+				{
+					JsonElement fn = call.GetProperty("function");
+					turn.Calls.Add(new AiToolCall(call.GetProperty("id").GetString() ?? string.Empty, fn.GetProperty("name").GetString() ?? string.Empty, fn.GetProperty("arguments").GetString() ?? "{}"));
+				}
+			}
+		}
+		return turn;
+	}
+
 	private static void ApplyAuth(HttpRequestMessage request, AiProtocol protocol, string key)
 	{
 		if (protocol == AiProtocol.Anthropic)

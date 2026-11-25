@@ -241,6 +241,25 @@ internal static class Program
 			foreach (string id in client.ListModelsAsync(provider, key).GetAwaiter().GetResult()) Console.WriteLine("  " + id);
 			return 0;
 		}
+		case "agent":
+		{
+			List<string> rest = args.Skip(1).ToList();
+			if (rest.Count < 2) throw new ArgumentException("usage: nova-cli ai agent <name> <task>");
+			AiProvider provider = AiStore.Find(_paths, rest[0]) ?? throw new ArgumentException("unknown provider " + rest[0]);
+			string key = AiStore.GetKey(_paths, rest[0]) ?? throw new ArgumentException("no key stored for " + rest[0]);
+			string task = string.Join(" ", rest.Skip(1));
+			using AiClient client = new AiClient(120);
+			AiAgent agent = new AiAgent(client);
+			AiAgentResult result = agent.RunAsync(provider, key, "You are the Nova Workbench assistant. Use the launcher tools when needed; write tools require explicit approval. Be concise.", task, (call, ct) => Task.Run(() => AiToolbox.Handle(_paths, call, ct), ct), (spec, call, ct) =>
+			{
+				Console.WriteLine("APPROVE WRITE TOOL " + spec.Name + " " + call.ArgumentsJson + " ? [y/N]");
+				string? answer = Console.ReadLine();
+				return Task.FromResult(string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase));
+			}).GetAwaiter().GetResult();
+			foreach (string line in result.Trace) Console.WriteLine("  tool " + line);
+			Console.WriteLine(result.Text);
+			return 0;
+		}
 		case "chat":
 		{
 			List<string> rest = args.Skip(1).ToList();
@@ -289,7 +308,7 @@ internal static class Program
 	private static int Help()
 	{
 		Header("nova-cli - Minecraft pack launcher (core)");
-		Console.WriteLine("usage: nova-cli <command> [options]\n\ncommands\n  paths                     show the portable folder layout\n  java                      list detected Java installations\n  instances                 list instances\n  install <version>         download a version json + client jar from Mojang\n  add                       create an instance\n  show <id>                 print one instance\n  doctor <id> [--deep]      health check (read-only)\n  repair <id>               download/verify everything that is missing\n  backup <id> [--world n]   back up changed worlds (or one world) to backups\\\n  backups <id>              list backups of an instance\n  restore <id> [--file f]   restore a backup next to the world (nothing is deleted)\n  crash <id>                analyse the newest crash report\n  pack inspect <file>       read a .mrpack / pack zip without installing it\n  pack import <file>        install a pack into its own instance (--id, --name)\n  pack export <id>          write a pack zip (--out, --worlds)\n  forge install <mc> <ver>  download + run the official Forge installer\n  store search <id> <text>  search the mod store for this instance\n  store add <id> <slug>     download a mod (and its dependencies) into the pack\n  mods <id> [--on f|--off f]  list or toggle mods (renames to .disabled)\n  versions                  releases from 1.8 + available mod loaders\n  account                   saved accounts (offline / microsoft) and the active one\n  account offline <name>    add an offline (no internet) player\n  account ms [--client-id]  sign in with a real Microsoft account (device code)\n  account use <id>          switch the active account\n  new <mc> [--forge b]      download a version and create a fresh instance for it\n  clone <id> <name>         duplicate an instance (mods included)\n  plan <id>                 dry-run: build the launch command, run nothing\n  launch <id> [--force]     check, then start the game\n  ai providers              list configured AI providers (keys stay DPAPI-encrypted)\n  ai add <name> <openai|anthropic> <baseUrl> <models,csv>   save provider, read API key from stdin\n  ai key <name>             replace the stored API key of a provider\n  ai remove <name>          delete a provider and its stored key\n  ai models <name>          list models the provider exposes\n  ai chat <name> <text>     one-shot chat (--system, --max-tokens, --timeout)\n\noptions\n  --root <dir>              portable root (default: next to nova.exe)\n  --name --game --version --versions --libraries --assets --java --memory --player");
+		Console.WriteLine("usage: nova-cli <command> [options]\n\ncommands\n  paths                     show the portable folder layout\n  java                      list detected Java installations\n  instances                 list instances\n  install <version>         download a version json + client jar from Mojang\n  add                       create an instance\n  show <id>                 print one instance\n  doctor <id> [--deep]      health check (read-only)\n  repair <id>               download/verify everything that is missing\n  backup <id> [--world n]   back up changed worlds (or one world) to backups\\\n  backups <id>              list backups of an instance\n  restore <id> [--file f]   restore a backup next to the world (nothing is deleted)\n  crash <id>                analyse the newest crash report\n  pack inspect <file>       read a .mrpack / pack zip without installing it\n  pack import <file>        install a pack into its own instance (--id, --name)\n  pack export <id>          write a pack zip (--out, --worlds)\n  forge install <mc> <ver>  download + run the official Forge installer\n  store search <id> <text>  search the mod store for this instance\n  store add <id> <slug>     download a mod (and its dependencies) into the pack\n  mods <id> [--on f|--off f]  list or toggle mods (renames to .disabled)\n  versions                  releases from 1.8 + available mod loaders\n  account                   saved accounts (offline / microsoft) and the active one\n  account offline <name>    add an offline (no internet) player\n  account ms [--client-id]  sign in with a real Microsoft account (device code)\n  account use <id>          switch the active account\n  new <mc> [--forge b]      download a version and create a fresh instance for it\n  clone <id> <name>         duplicate an instance (mods included)\n  plan <id>                 dry-run: build the launch command, run nothing\n  launch <id> [--force]     check, then start the game\n  ai providers              list configured AI providers (keys stay DPAPI-encrypted)\n  ai add <name> <openai|anthropic> <baseUrl> <models,csv>   save provider, read API key from stdin\n  ai key <name>             replace the stored API key of a provider\n  ai remove <name>          delete a provider and its stored key\n  ai models <name>          list models the provider exposes\n  ai chat <name> <text>     one-shot chat (--system, --max-tokens, --timeout)\n  ai agent <name> <task>    supervised agent: read-only tools auto, write tools ask [y/N]\n\noptions\n  --root <dir>              portable root (default: next to nova.exe)\n  --name --game --version --versions --libraries --assets --java --memory --player");
 		return 0;
 	}
 

@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -23,12 +24,14 @@ public partial class AiView : UserControl
 		{
 			_chat.RequestManageProviders -= OnRequestManageProviders;
 			_chat.Messages.CollectionChanged -= OnMessagesChanged;
+			_chat.ApprovalGate = null;
 		}
 		_chat = (e.NewValue as MainViewModel)?.AiChat;
 		if (_chat != null)
 		{
 			_chat.RequestManageProviders += OnRequestManageProviders;
 			_chat.Messages.CollectionChanged += OnMessagesChanged;
+			_chat.ApprovalGate = OnApprovalGate;
 		}
 	}
 
@@ -38,6 +41,11 @@ public partial class AiView : UserControl
 	{
 		ChatScroll.UpdateLayout();
 		ChatScroll.ScrollToVerticalOffset(ChatScroll.ScrollableHeight);
+	}
+
+	private async Task<bool> OnApprovalGate(AiToolSpec spec, AiToolCall call, System.Threading.CancellationToken ct)
+	{
+		return await Dispatcher.InvokeAsync(() => MessageBox.Show(Window.GetWindow(this), "The AI agent wants to run a changing action:\n\n" + spec.Name + "\n" + call.ArgumentsJson + "\n\nAllow it? A denied action does nothing.", "AI agent approval", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
 	}
 
 	private void OnRequestManageProviders(object? sender, System.EventArgs e)

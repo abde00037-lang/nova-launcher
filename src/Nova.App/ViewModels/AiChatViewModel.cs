@@ -31,7 +31,7 @@ public sealed class AiChatMessage
 /// <summary>Bring-your-own-key chat over the Nova.Core AI layer. Chat only: no launcher action executes from here yet.</summary>
 public sealed class AiChatViewModel : INotifyPropertyChanged
 {
-	private const string SystemPrompt = "You are the Nova Workbench assistant inside Nova Launcher, a portable Minecraft launcher for Windows (Vanilla/Forge/Fabric/NeoForge). Help with modpacks, mods, loaders, crash reports, performance tuning and launcher features. Be concise and practical. You cannot execute launcher actions yet; when an action is needed, describe the exact UI steps or nova-cli command. Never ask for API keys, passwords or tokens.";
+	private const string SystemPrompt = "You are the Nova Workbench assistant inside Nova Launcher, a portable Minecraft launcher for Windows (Vanilla/Forge/Fabric/NeoForge). Help with modpacks, mods, loaders, crash reports, performance tuning and launcher features. Be concise and practical. You may call launcher tools: read-only list_instances, instance_detail, analyze_crash, mod_conflicts, read_log; write tools toggle_mod and set_memory_mb run only after the user approves them in a confirmation dialog. Prefer tool output over guessing, and never ask for API keys, passwords or tokens.";
 
 	private readonly LauncherPaths _paths;
 	private AiProvider? _selectedProvider;
@@ -43,6 +43,9 @@ public sealed class AiChatViewModel : INotifyPropertyChanged
 	public ICommand SendCommand { get; }
 	public ICommand ManageCommand { get; }
 	public event EventHandler? RequestManageProviders;
+
+	/// <summary>Asked before any write tool executes. Null denies every write tool.</summary>
+	public Func<AiToolSpec, AiToolCall, Task<bool>>? ApprovalGate { get; set; }
 	public event PropertyChangedEventHandler? PropertyChanged;
 
 	public AiChatViewModel(LauncherPaths paths)
@@ -111,8 +114,11 @@ public sealed class AiChatViewModel : INotifyPropertyChanged
 		try
 		{
 			using AiClient client = new AiClient(120);
-			AiReply reply = await client.ChatAsync(provider, key, SystemPrompt, text, 700).ConfigureAwait(true);
-			Messages.Add(new AiChatMessage("assistant", string.IsNullOrWhiteSpace(reply.Text) ? "(empty reply)" : reply.Text, reply.Model));
+			AiAgent agent = new AiAgent(client);
+			AiApprovalGate gate = ApprovalGate ?? ((spec, call, ct) => Task.FromResult(false));
+			AiAgentResult result = await agent.RunAsync(provider, key, SystemPrompt, text, (call, ct) => Task.Run(() => AiToolbox.Handle(_paths, call, ct), ct), gate).ConfigureAwait(true);
+			foreach (string line in result.Trace) Messages.Add(new AiChatMessage("system", "TOOL " + line));
+			Messages.Add(new AiChatMessage("assistant", result.Text, provider.Models.FirstOrDefault()));
 		}
 		catch (Exception ex)
 		{
