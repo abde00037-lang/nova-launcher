@@ -129,6 +129,68 @@ try
         Check(twoStages[0] != twoStages[1] && twoStages.All(Directory.Exists), "parallel update staging is serialized and isolated");
         if (OperatingSystem.IsWindows()) await UpdaterSwapperRegression.Run(root);
 
+        // --- BYOK AI assistant layer: local fake server only, no external network and no real keys ---
+        int aiPort;
+        using (var probe = new TcpListener(IPAddress.Loopback, 0)) { probe.Start(); aiPort = ((IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
+        using var aiListener = new HttpListener();
+        aiListener.Prefixes.Add($"http://127.0.0.1:{aiPort}/");
+        aiListener.Start();
+        var aiServer = Task.Run(async () =>
+        {
+            while (aiListener.IsListening)
+            {
+                HttpListenerContext ctx;
+                try { ctx = await aiListener.GetContextAsync(); }
+                catch { break; }
+                _ = Task.Run(() =>
+                {
+                    string path = ctx.Request.Url!.AbsolutePath;
+                    string body; int status = 200;
+                    if (path == "/oai/v1/chat/completions")
+                    {
+                        using var reqReader = new StreamReader(ctx.Request.InputStream);
+                        string reqBody = reqReader.ReadToEnd();
+                        if (reqBody.Contains("bad-model")) { status = 500; body = "{\"error\":\"boom\"}"; }
+                        else body = "{\"choices\":[{\"message\":{\"content\":\"HELLO-OPENAI\"}}]}";
+                    }
+                    else if (path == "/oai/v1/models") body = "{\"data\":[{\"id\":\"bad-model\"},{\"id\":\"good-model\"}]}";
+                    else if (path == "/anth/v1/messages") body = "{\"content\":[{\"type\":\"text\",\"text\":\"HELLO-ANTHROPIC\"}]}";
+                    else { status = 404; body = "{\"error\":\"nf\"}"; }
+                    byte[] bytes = Encoding.UTF8.GetBytes(body);
+                    ctx.Response.StatusCode = status;
+                    ctx.Response.ContentType = "application/json";
+                    ctx.Response.ContentLength64 = bytes.Length;
+                    ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+                    ctx.Response.Close();
+                });
+            }
+        });
+        var aiPaths = new LauncherPaths(Path.Combine(root, "ai-root"));
+        Directory.CreateDirectory(aiPaths.Root);
+        var aiProv = new AiProvider { Name = "testprov", Protocol = AiProtocol.OpenAiCompatible, BaseUrl = $"http://127.0.0.1:{aiPort}/oai/v1", Models = new List<string> { "bad-model", "good-model" } };
+        AiStore.SaveProvider(aiPaths, aiProv);
+        AiStore.SetKey(aiPaths, "testprov", "sk-test-secret-abc123");
+        Check(AiStore.LoadProviders(aiPaths).Single().Models.Count == 2, "ai provider config round trip");
+        Check(!File.ReadAllText(AiStore.KeysFile(aiPaths)).Contains("sk-test-secret-abc123"), "ai key never stored in plaintext");
+        using (var aiClient = new AiClient(30))
+        {
+            var aiReply = await aiClient.ChatAsync(aiProv, AiStore.GetKey(aiPaths, "testprov")!, null, "hi", 64);
+            Check(aiReply.Model == "good-model" && aiReply.Text == "HELLO-OPENAI", "ai model fallback after provider error");
+            Check((await aiClient.ListModelsAsync(aiProv, "k")).Contains("good-model"), "ai model listing");
+            var anthProv = new AiProvider { Name = "anth", Protocol = AiProtocol.Anthropic, BaseUrl = $"http://127.0.0.1:{aiPort}/anth", Models = new List<string> { "am1" } };
+            var anthReply = await aiClient.ChatAsync(anthProv, "k", "sys", "hi", 64);
+            Check(anthReply.Text == "HELLO-ANTHROPIC", "ai anthropic protocol parse");
+            var deadProv = new AiProvider { Name = "dead", Protocol = AiProtocol.OpenAiCompatible, BaseUrl = $"http://127.0.0.1:{aiPort}/nope", Models = new List<string> { "m" } };
+            try { await aiClient.ChatAsync(deadProv, "k", null, "hi", 8); throw new Exception("accepted failing provider"); }
+            catch (AiException) { Console.WriteLine("PASS ai all-model failure reported"); }
+        }
+        Reject(() => AiStore.SaveProvider(aiPaths, new AiProvider { Name = "bad name", BaseUrl = "http://x", Models = new List<string> { "m" } }), "ai rejects bad provider name");
+        Reject(() => AiStore.SaveProvider(aiPaths, new AiProvider { Name = "ok", BaseUrl = "ftp://x", Models = new List<string> { "m" } }), "ai rejects non-http base url");
+        Reject(() => AiStore.SaveProvider(aiPaths, new AiProvider { Name = "ok", BaseUrl = "http://x", Models = new List<string>() }), "ai rejects empty model list");
+        Check(AiStore.RemoveProvider(aiPaths, "testprov") && AiStore.GetKey(aiPaths, "testprov") == null, "ai provider removal clears key");
+        aiListener.Stop();
+        try { await aiServer.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
+
     }
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

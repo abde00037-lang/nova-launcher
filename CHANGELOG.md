@@ -5,6 +5,7 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 ## [Unreleased]
 - Relicense the project from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0); all releases except v2.0.0 are offered under CC BY-NC 4.0, while v2.0.0 remains under the MIT License.
 - Add THIRD-PARTY-NOTICES.md and ship it inside release packages (portable root and `bin`) so bundled .NET runtime MIT attribution travels with every package; document runtime-downloaded components (Temurin Java, Minecraft, Forge, loaders, mods).
+- Add the bring-your-own-key AI assistant layer: `AiClient` with OpenAI-compatible and Anthropic protocols, ordered model fallback chain, DPAPI-protected API keys under `ai/`, and `nova-cli ai` commands (providers/add/key/remove/models/chat). Regression tests run against a local fake server only; the launcher control surface (agent actions) comes later.
 
 ## [v2.1.11]
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.

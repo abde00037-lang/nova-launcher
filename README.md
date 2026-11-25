@@ -264,6 +264,16 @@ You can copy the launcher and world data, but paths in instance settings may nee
 - **Vulnerability Reporting:** See [**SECURITY.md**](SECURITY.md)
 - **Release History:** See [**CHANGELOG.md**](CHANGELOG.md)
 
+## AI Assistant (Bring Your Own Key)
+
+Nova can talk to your own AI endpoint (no bundled keys, no Nova servers):
+
+- **Providers:** any OpenAI-compatible base URL (`.../v1`) or Anthropic-style base URL, each with an ordered model fallback chain — if a model fails, the next one answers.
+- **Keys:** stored per provider with Windows DPAPI under `ai/keys.dat` in the launcher root; never written in plaintext and never sent anywhere except the provider you configured.
+- **CLI today:** `nova-cli ai add <name> <openai|anthropic> <baseUrl> <models,csv>`, then `ai providers`, `ai models <name>`, `ai chat <name> <text>` (`--system`, `--max-tokens`, `--timeout`), `ai key <name>`, `ai remove <name>`.
+- **Privacy:** chat text and any logs you paste go to your provider. Review content before sending; the assistant never uploads worlds, accounts, or mods on its own.
+- **Roadmap:** the in-app chat page and supervised agent actions (install mods, tune memory, build packs) will reuse this layer with confirmations and snapshots; nothing executes automatically today.
+
 ## License
 
 Nova Launcher's own source code, installer scripts, documentation, and repository assets are licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/) — full text in [LICENSE](LICENSE).
