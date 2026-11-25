@@ -37,6 +37,16 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
+## Latest update — v2.1.4
+
+- Safer archive and modpack paths, with configurable extraction limits.
+- Duplicate downloads are coordinated; large native metadata lists are processed faster.
+- OTA SHA-256 verification and an isolated upgrade test from v2.1.2.
+
+[Download v2.1.4](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.4) · [Full changelog](CHANGELOG.md)
+
+---
+
 ## Why Nova Launcher?
 
 *Comparison snapshot as of November 2026 — Prism Launcher and Modrinth App are both great launchers. Nova offers a portable bundle and an OTA updater.*
