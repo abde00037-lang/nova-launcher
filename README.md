@@ -39,8 +39,9 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.13
+## Latest update — v2.1.14
 
+- Fix launcher update discovery on shared IPs by checking GitHub's public release feed before the rate-limited anonymous API.
 - Fix white backgrounds in AI provider dropdowns and add ready-to-edit AgentRouter and OneAIKey setups for OpenAI-compatible and Anthropic APIs.
 - Add an in-app AI assistant and supervised agent; every write action requires explicit approval.
 - Browse mod snapshots with stored sizes and missing-file status. Restore with SHA-256 preflight and an automatic recovery snapshot; explicitly delete only selected archived snapshots after confirmation.

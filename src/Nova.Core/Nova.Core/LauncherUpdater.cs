@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Nova.Core;
 
@@ -79,64 +80,110 @@ public static class LauncherUpdater
 
 	public static async Task<LauncherUpdateInfo?> CheckForUpdateAsync(string? repoSlug = null, bool includeSameOrOlder = false, CancellationToken ct = default(CancellationToken))
 	{
-		string repo = (string.IsNullOrWhiteSpace(repoSlug) ? DefaultRepo : repoSlug.Trim().Trim('/'));
-		string apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
-
-		using HttpClient http = new HttpClient
+		string repo = string.IsNullOrWhiteSpace(repoSlug) ? DefaultRepo : repoSlug.Trim().Trim('/');
+		try
 		{
-			Timeout = TimeSpan.FromSeconds(18.0)
-		};
+			// GitHub's anonymous REST API is rate-limited per public IP. The release Atom feed
+			// is a lightweight public endpoint and avoids making startup checks consume that quota.
+			return await CheckLatestFromAtomAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+		}
+		catch (HttpRequestException) when (!ct.IsCancellationRequested)
+		{
+			// Retain the original JSON API as a fallback if GitHub's release feed is unavailable.
+			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+		}
+		catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+		{
+			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+		}
+		catch (System.Xml.XmlException) when (!ct.IsCancellationRequested)
+		{
+			return await CheckLatestFromApiAsync(repo, includeSameOrOlder, ct).ConfigureAwait(false);
+		}
+	}
+
+	private static async Task<LauncherUpdateInfo?> CheckLatestFromAtomAsync(string repo, bool includeSameOrOlder, CancellationToken ct)
+	{
+		using HttpClient http = new HttpClient { Timeout = TimeSpan.FromSeconds(18.0) };
+		http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NovaWorkbench/" + CurrentVersion);
+		http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/atom+xml, application/xml, text/xml");
+		using HttpResponseMessage response = await http.GetAsync($"https://github.com/{repo}/releases.atom", ct).ConfigureAwait(false);
+		response.EnsureSuccessStatusCode();
+		using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+		XDocument feed = await XDocument.LoadAsync(stream, LoadOptions.None, ct).ConfigureAwait(false);
+		XNamespace atom = "http://www.w3.org/2005/Atom";
+		XElement? entry = feed.Root?.Element(atom + "entry");
+		if (entry == null) return null;
+		string? releaseUrl = entry.Elements(atom + "link")
+			.FirstOrDefault(link => string.Equals((string?)link.Attribute("rel"), "alternate", StringComparison.OrdinalIgnoreCase))?
+			.Attribute("href")?.Value;
+		if (!Uri.TryCreate(releaseUrl, UriKind.Absolute, out Uri? parsedUrl)) return null;
+		string tag = Uri.UnescapeDataString(parsedUrl.Segments.LastOrDefault()?.Trim('/') ?? string.Empty);
+		if (string.IsNullOrWhiteSpace(tag)) return null;
+		string current = CurrentVersion;
+		if (!includeSameOrOlder && !IsNewer(tag, current)) return null;
+		string latestClean = NormalizeVersion(tag).ToString(3);
+		string title = entry.Element(atom + "title")?.Value ?? tag;
+		DateTimeOffset? published = null;
+		if (DateTimeOffset.TryParse(entry.Element(atom + "updated")?.Value, out DateTimeOffset parsedDate)) published = parsedDate;
+
+		// Asset names are part of Nova's release contract. Size may be unknown on the feed
+		// path; the updater still caps downloads and verifies the SHA-256 manifest before use.
+		string escapedTag = Uri.EscapeDataString(tag);
+		string releaseBase = $"https://github.com/{repo}/releases/download/{escapedTag}";
+		string assetName = ExpectedAssetPrefix + ".zip";
+		string downloadUrl = releaseBase + "/" + assetName;
+		long assetSize = 0L;
+		try
+		{
+			using HttpRequestMessage head = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
+			using HttpResponseMessage assetResponse = await http.SendAsync(head, ct).ConfigureAwait(false);
+			long? contentLength = assetResponse.Content.Headers.ContentLength;
+			if (assetResponse.IsSuccessStatusCode && contentLength.HasValue && contentLength.Value > 0 && contentLength.Value <= 2L * 1024 * 1024 * 1024)
+				assetSize = contentLength.Value;
+		}
+		catch (HttpRequestException) when (!ct.IsCancellationRequested) { }
+		catch (TaskCanceledException) when (!ct.IsCancellationRequested) { }
+		return new LauncherUpdateInfo(
+			current, latestClean, tag, title, string.Empty, releaseUrl,
+			downloadUrl, assetName, assetSize, published,
+			releaseBase + "/SHA256SUMS.txt");
+	}
+
+	private static async Task<LauncherUpdateInfo?> CheckLatestFromApiAsync(string repo, bool includeSameOrOlder, CancellationToken ct)
+	{
+		string apiUrl = $"https://api.github.com/repos/{repo}/releases/latest";
+		using HttpClient http = new HttpClient { Timeout = TimeSpan.FromSeconds(18.0) };
 		http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NovaWorkbench/" + CurrentVersion);
 		http.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/vnd.github+json");
-
-		using HttpResponseMessage resp = await http.GetAsync(apiUrl, ct).ConfigureAwait(continueOnCapturedContext: false);
-		if ((int)resp.StatusCode == 404)
-		{
-			return null;
-		}
-		resp.EnsureSuccessStatusCode();
-
-		using Stream stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(continueOnCapturedContext: false);
-		using JsonDocument doc = await JsonDocument.ParseAsync(stream, default, ct).ConfigureAwait(continueOnCapturedContext: false);
+		using HttpResponseMessage response = await http.GetAsync(apiUrl, ct).ConfigureAwait(false);
+		if ((int)response.StatusCode == 404) return null;
+		response.EnsureSuccessStatusCode();
+		using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+		using JsonDocument doc = await JsonDocument.ParseAsync(stream, default, ct).ConfigureAwait(false);
 		JsonElement root = doc.RootElement;
-
-		string tag = (root.TryGetProperty("tag_name", out var tagEl) ? (tagEl.GetString() ?? "") : "");
-		if (string.IsNullOrWhiteSpace(tag))
-		{
-			return null;
-		}
+		string tag = root.TryGetProperty("tag_name", out JsonElement tagNode) ? tagNode.GetString() ?? string.Empty : string.Empty;
+		if (string.IsNullOrWhiteSpace(tag)) return null;
 		string current = CurrentVersion;
+		if (!includeSameOrOlder && !IsNewer(tag, current)) return null;
 		string latestClean = NormalizeVersion(tag).ToString(3);
-		if (!includeSameOrOlder && !IsNewer(tag, current))
-		{
-			return null;
-		}
-
-		string title = (root.TryGetProperty("name", out var nameEl) ? (nameEl.GetString() ?? tag) : tag);
-		string notes = (root.TryGetProperty("body", out var bodyEl) ? (bodyEl.GetString() ?? "") : "");
-		string htmlUrl = (root.TryGetProperty("html_url", out var htmlEl) ? (htmlEl.GetString() ?? $"https://github.com/{repo}/releases") : $"https://github.com/{repo}/releases");
+		string title = root.TryGetProperty("name", out JsonElement nameNode) ? nameNode.GetString() ?? tag : tag;
+		string notes = root.TryGetProperty("body", out JsonElement bodyNode) ? bodyNode.GetString() ?? string.Empty : string.Empty;
+		string htmlUrl = root.TryGetProperty("html_url", out JsonElement htmlNode) ? htmlNode.GetString() ?? $"https://github.com/{repo}/releases" : $"https://github.com/{repo}/releases";
 		DateTimeOffset? published = null;
-		if (root.TryGetProperty("published_at", out var pubEl) && pubEl.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(pubEl.GetString(), out var parsedDate))
-		{
-			published = parsedDate;
-		}
-
+		if (root.TryGetProperty("published_at", out JsonElement publishedNode) && publishedNode.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(publishedNode.GetString(), out DateTimeOffset parsedDate)) published = parsedDate;
 		string? downloadUrl = null;
 		string? assetName = null;
 		long assetSize = 0L;
 		string? checksumUrl = null;
-
-		if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
+		if (root.TryGetProperty("assets", out JsonElement assets) && assets.ValueKind == JsonValueKind.Array)
 		{
-			foreach (JsonElement asset in assetsEl.EnumerateArray())
+			foreach (JsonElement asset in assets.EnumerateArray())
 			{
-				string aName = (asset.TryGetProperty("name", out var an) ? (an.GetString() ?? "") : "");
-				string aUrl = (asset.TryGetProperty("browser_download_url", out var au) ? (au.GetString() ?? "") : "");
-				long aSize = (asset.TryGetProperty("size", out var az) ? az.GetInt64() : 0L);
-				if (aName.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl))
-				{
-					checksumUrl = aUrl;
-				}
+				string aName = asset.TryGetProperty("name", out JsonElement name) ? name.GetString() ?? string.Empty : string.Empty;
+				string aUrl = asset.TryGetProperty("browser_download_url", out JsonElement url) ? url.GetString() ?? string.Empty : string.Empty;
+				long aSize = asset.TryGetProperty("size", out JsonElement size) ? size.GetInt64() : 0L;
+				if (aName.Equals("SHA256SUMS.txt", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl)) checksumUrl = aUrl;
 				if (aName.Equals(ExpectedAssetPrefix + ".zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(aUrl))
 				{
 					downloadUrl = aUrl;
@@ -145,7 +192,6 @@ public static class LauncherUpdater
 				}
 			}
 		}
-
 		return new LauncherUpdateInfo(current, latestClean, tag, title, notes, htmlUrl, downloadUrl, assetName, assetSize, published, checksumUrl);
 	}
 

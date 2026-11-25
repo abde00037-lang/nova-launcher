@@ -4,6 +4,10 @@ All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in
 
 ## [Unreleased]
 
+## [v2.1.14] — 2026-11-24
+- Fix launcher update discovery on shared IPs by reading GitHub's public release Atom feed first, avoiding the anonymous REST API's per-IP rate limit; retain the REST API as a fallback.
+- Continue verifying OTA packages against SHA-256 before staging; the feed-based path keeps size checks bounded by the updater's package limit.
+
 ## [v2.1.13] — 2026-11-24
 - Fix white backgrounds in AI provider and protocol dropdowns; give popup items and the provider list colors consistent with Nova's dark theme.
 - Add quick-setup presets for AgentRouter and OneAIKey using their documented OpenAI-compatible and Anthropic-compatible endpoints and model IDs.
