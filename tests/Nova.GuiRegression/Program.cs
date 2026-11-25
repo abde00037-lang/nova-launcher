@@ -189,6 +189,43 @@ internal static class Program
         Check(RunApprovalDialog(owner, "AiApproveAllow") == true, "AI write approval dialog allows on explicit allow");
     }
 
+    private static async Task ModSnapshotsUiRegression(Window owner, string root)
+    {
+        string fixtureRoot = Path.Combine(root, "mod-snapshot-ui");
+        var paths = new LauncherPaths(fixtureRoot);
+        string game = Path.Combine(fixtureRoot, "instances", "fixture", "game");
+        string mods = Path.Combine(game, "mods");
+        Directory.CreateDirectory(mods);
+        File.WriteAllText(Path.Combine(mods, "ui-fixture.jar"), "isolated mod fixture");
+        var instance = new InstanceVm(new InstanceConfig
+        {
+            Id = "fixture", Name = "Snapshot UI fixture", GameDirectory = game, VersionId = "1.20.1-fabric"
+        }, 1, "test", null);
+        var vm = new MainViewModel(paths);
+        vm.Selected = instance;
+        var dialog = new ModSnapshotsWindow(vm, instance) { Owner = owner };
+        try
+        {
+            dialog.Show();
+            await Task.Delay(250);
+            Check(Descendants<Button>(dialog).Any(button =>
+                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsCreate"),
+                  "mod snapshots window exposes create action");
+            Check(Descendants<Button>(dialog).Any(button =>
+                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsRestore"),
+                  "mod snapshots window exposes restore action");
+            var list = (ListBox)(dialog.FindName("SnapshotsList") ?? throw new Exception("snapshot list missing"));
+            Check(list.Items.Count == 0, "mod snapshots window shows empty state for a new fixture");
+            var create = Descendants<Button>(dialog).First(button =>
+                System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsCreate");
+            create.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => list.Items.Count == 1, "snapshot UI create result");
+            Check(Directory.GetDirectories(Path.Combine(mods, ".nova-mod-snapshots")).Length == 1,
+                  "mod snapshots window creates a snapshot in the selected instance");
+        }
+        finally { dialog.Close(); }
+    }
+
     private static async Task LayoutRegression(string root)
     {
         Environment.SetEnvironmentVariable("NOVA_ROOT", root);
@@ -242,6 +279,7 @@ internal static class Program
             Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
                   Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
                   "workspace expands again after resizing larger");
+            await ModSnapshotsUiRegression(window, root);
         }
         finally
         {
