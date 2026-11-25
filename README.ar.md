@@ -14,7 +14,7 @@
 [![أحدث إصدار](https://img.shields.io/github/v/release/abde00037-lang/nova-launcher?style=for-the-badge&label=RELEASE&color=e07a5f&logo=github)](https://github.com/abde00037-lang/nova-launcher/releases/latest)
 [![حالة البناء](https://img.shields.io/github/actions/workflow/status/abde00037-lang/nova-launcher/ci.yml?style=for-the-badge&label=CI%20BUILD&logo=githubactions&logoColor=white)](https://github.com/abde00037-lang/nova-launcher/actions)
 [![المنصة](https://img.shields.io/badge/WINDOWS-10%20%2F%2011%20(64--BIT)-1f2937?style=for-the-badge&logo=windows)](https://github.com/abde00037-lang/nova-launcher/releases/latest)
-[![الرخصة](https://img.shields.io/badge/LICENSE-MIT-0ea5e9?style=for-the-badge)](LICENSE)
+[![الرخصة](https://img.shields.io/badge/LICENSE-CC%20BY--NC%204.0-0ea5e9?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 <br />
 
@@ -28,7 +28,7 @@
 
 ## نظرة عامة
 
-**Nova Launcher** (بواجهته المكتبية الحديثة **Nova Workbench**) هو لانشر ماينكرافت سريع ومفتوح المصدر مبني على **.NET 8 و WPF**، مصمم بفصل كامل بين ملفات البرنامج (`bin\`) وبيانات اللاعب (`instances\`, `saves\`, `mods\`, `accounts\`).
+**Nova Launcher** (بواجهته المكتبية الحديثة **Nova Workbench**) هو لانشر ماينكرافت سريع ومتاح المصدر مبني على **.NET 8 و WPF**، مصمم بفصل كامل بين ملفات البرنامج (`bin\`) وبيانات اللاعب (`instances\`, `saves\`, `mods\`, `accounts\`).
 
 تعمل النسخة المحمولة من مجلد يمكن نقله، بعيداً عن `%APPDATA%\.minecraft`. يختار المثبّت افتراضياً `%LOCALAPPDATA%\NovaWorkbench` ويمكنه إنشاء اختصارات في ويندوز. احتفظ بنسخة احتياطية من بياناتك قبل التحديث.
 
@@ -138,7 +138,7 @@
 ## الحسابات والأمان وبصمات التحقق (`SHA-256`)
 
 - **تسجيل الدخول (Microsoft + Offline):** يدعم تسجيل الدخول الرسمي بحسابات مايكروسوفت عبر رمز الجهاز الآمن (`OAuth2 Device Code` بدون إدخال كلمة المرور داخل اللانشر)، كما يدعم إنشاء حسابات محلية أوفلاين مباشرة بدون إنترنت.
-- **تنبيه Windows SmartScreen وبرامج الحماية:** لأن المشروع مجاني ومفتوح المصدر بدون شهادة توقيع تجارية مدفوعة، قد تظهر نافذة SmartScreen عند أول تشغيل — اضغط **More info ← Run anyway**. وإذا اعترض برنامج الحماية على مثبّت الويب الصغير، استخدم المثبّت الكامل **`Nova-Setup-Full.exe`**.
+- **تنبيه Windows SmartScreen وبرامج الحماية:** لأن المشروع مجاني ومتاح المصدر بدون شهادة توقيع تجارية مدفوعة، قد تظهر نافذة SmartScreen عند أول تشغيل — اضغط **More info ← Run anyway**. وإذا اعترض برنامج الحماية على مثبّت الويب الصغير، استخدم المثبّت الكامل **`Nova-Setup-Full.exe`**.
 
 ### بصمات التحقق (`SHA-256`)
 
@@ -176,6 +176,11 @@
 ## الترخيص والأمان
 
 - للإبلاغ عن الثغرات الأمنية راجع [**SECURITY.md**](SECURITY.md)، وللمساهمة راجع [**CONTRIBUTING.md**](CONTRIBUTING.md).
-- مرخّص بموجب رخصة [MIT](LICENSE). مشروع مجتمعي مستقل غير تابع لشركة Mojang Studios أو Microsoft.
+- الكود والنصوص وأصول المستودع الخاصة بالمشروع مرخّصة بموجب [رخصة كرييتيف كومنز: نَسب المُصنَّف - غير تجاري 4.0 دولي (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/)، والنص الكامل في [LICENSE](LICENSE).
+- **النسب:** احتفظ بإشعار حقوق النشر ورابط الرخصة عند المشاركة أو الاشتقاق. **غير تجاري:** الاستخدام التجاري غير مسموح دون إذن كتابي منفصل من صاحب الحقوق.
+- رخصة CC BY-NC 4.0 ليست رخصة مصدر مفتوح معتمدة من مبادرة المصدر المفتوح (OSI)، ولا توصي Creative Commons باستخدام رخصها للبرمجيات؛ اعتمدها صاحب الحقوق لهذا المشروع اختياراً.
+- الإصدارات حتى v2.1.11 نُشرت برخصة MIT وتبقى نسخها المنشورة متاحة بشروط MIT؛ الالتزامات والإصدارات الجديدة بعد تغيير الرخصة تخضع لـ CC BY-NC 4.0.
+- المكونات المضمّنة أو المنزّلة تحتفظ برخصها الخاصة (مثل .NET برخصة MIT، وJava من Adoptium برخصة GPL-2.0 مع استثناء Classpath، وماينكرافت وأصولها وفق اتفاقية Mojang، والمودات برخص أصحابها)؛ رخصة CC تغطي مواد Nova نفسها فقط.
+- مشروع مجتمعي مستقل متاح المصدر، غير تابع لشركة Mojang Studios أو Microsoft.
 
 </div>

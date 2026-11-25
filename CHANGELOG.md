@@ -2,6 +2,9 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [Unreleased]
+- Relicense the project from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0); previously published releases remain available under MIT.
+
 ## [v2.1.11]
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
 - Keep the mod-page header and filter controls from overlapping at narrower widths.

@@ -44,6 +44,7 @@ The test creates temporary fixture data. CI and release workflows also verify th
 
 ## Pull Request Guidelines
 
+- The project is licensed under [CC BY-NC 4.0](LICENSE). By submitting a contribution you license it under the same terms (inbound = outbound).
 - Keep `Nova.Core` platform-clean and free of UI dependencies so every feature works identically in both `Nova.App` and `nova-cli`.
 - Never write files outside the portable launcher root (`LauncherPaths.Root`) or delete user saves/mods destructively.
 - Ensure CI (`CI Build & Verify`) passes with `0` errors before requesting a review.

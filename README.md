@@ -15,7 +15,7 @@
 [![CI Status](https://img.shields.io/github/actions/workflow/status/abde00037-lang/nova-launcher/ci.yml?style=for-the-badge&label=CI%20BUILD&logo=githubactions&logoColor=white)](https://github.com/abde00037-lang/nova-launcher/actions)
 [![Platform](https://img.shields.io/badge/WINDOWS-10%20%2F%2011%20(64--BIT)-1f2937?style=for-the-badge&logo=windows)](https://github.com/abde00037-lang/nova-launcher/releases/latest)
 [![Runtime](https://img.shields.io/badge/.NET-8.0%20EMBEDDED-512bd4?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/badge/LICENSE-MIT-0ea5e9?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/LICENSE-CC%20BY--NC%204.0-0ea5e9?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 <br />
 
@@ -146,7 +146,7 @@ Nova supports **both** official and offline play seamlessly from the **Accounts*
 2. **Standalone Offline Profiles:** Create instant local player handles with deterministic offline UUIDs for singleplayer, LAN worlds, and offline-mode servers — no prior online login or internet connection required.
 
 ### Windows SmartScreen & Antivirus Transparency
-Because Nova Launcher is a free, open-source project without a paid `$400+/yr` commercial EV code-signing certificate:
+Because Nova Launcher is a free, source-available community project without a paid `$400+/yr` commercial EV code-signing certificate:
 - Windows Defender SmartScreen may show **"Windows protected your PC"** on first run — click **More info → Run anyway**.
 - Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
 - For v2.1.1, the four packages and checksums were built and uploaded by [GitHub Actions](https://github.com/abde00037-lang/nova-launcher/actions/runs/45464347081). For v2.1.0, the four binary assets were built and uploaded by [run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
@@ -266,5 +266,12 @@ You can copy the launcher and world data, but paths in instance settings may nee
 
 ## License
 
-Released under the [MIT License](LICENSE).  
-*Nova Launcher is an independent open-source project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
+Nova Launcher's own source code, installer scripts, documentation, and repository assets are licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/) — full text in [LICENSE](LICENSE).
+
+- **Attribution:** keep the copyright notice and a link to the license when you share or adapt the project.
+- **NonCommercial:** use that is primarily intended for commercial advantage or monetary compensation is not permitted without separate written permission from the copyright holder.
+- **Scope note:** CC BY-NC 4.0 is not an OSI-approved open-source license, and Creative Commons does not recommend its licenses for software; the copyright holder chose it for this project.
+- **Earlier releases:** versions up to and including v2.1.11 were published under the MIT License, and copies of those releases remain available under MIT terms. Commits and releases from the relicensing commit onward are under CC BY-NC 4.0.
+- **Third-party material:** bundled or downloaded components keep their own licenses — for example the .NET runtime (MIT), Adoptium Java (GPL-2.0 with Classpath Exception), Minecraft and its assets (Mojang EULA), and mods (their authors' licenses). The CC license covers only Nova's own material.
+
+*Nova Launcher is an independent source-available project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
