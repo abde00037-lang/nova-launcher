@@ -2179,6 +2179,19 @@ public sealed partial class MainViewModel : ObservableObject
 		finally { IsModUpdateBusy = false; }
 	}
 
+	public async Task DeleteModSnapshotAsync(InstanceVm instance, string snapshotId)
+	{
+		if (Selected != instance || HasActiveModOperations || IsGameRunning)
+			throw new InvalidOperationException("Select this instance and close Minecraft before deleting a snapshot.");
+		IsModUpdateBusy = true;
+		try
+		{
+			await Task.Run(() => ModSnapshot.DeleteAsync(Path.Combine(instance.GameDirectory, "mods"), snapshotId));
+			AppendConsole("WARN", "mod snapshot permanently deleted: " + snapshotId);
+		}
+		finally { IsModUpdateBusy = false; }
+	}
+
 	public async Task UpdateAllModsAsync()
 	{
 		InstanceVm? selected = Selected;

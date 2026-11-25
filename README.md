@@ -39,10 +39,11 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.11
+## Latest update — v2.1.12
 
-- Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
-- The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
+- Add an in-app AI assistant and supervised agent; every write action requires explicit approval.
+- Browse mod snapshots with stored sizes and missing-file status. Restore with SHA-256 preflight and an automatic recovery snapshot; explicitly delete only selected archived snapshots after confirmation.
+- The workspace remains responsive across window sizes, with regressions covering the main pages and snapshot workflows.
 
 [Latest release and downloads](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [All releases](https://github.com/abde00037-lang/nova-launcher/releases) · [Full changelog](CHANGELOG.md)
 
@@ -273,7 +274,7 @@ Nova can talk to your own AI endpoint (no bundled keys, no Nova servers):
 - **CLI today:** `nova-cli ai add <name> <openai|anthropic> <baseUrl> <models,csv>`, then `ai providers`, `ai models <name>`, `ai chat <name> <text>` (`--system`, `--max-tokens`, `--timeout`), `ai key <name>`, `ai remove <name>`.
 - **Privacy:** chat text and any logs you paste go to your provider. Review content before sending; the assistant never uploads worlds, accounts, or mods on its own.
 - **In-app chat:** the Workbench **AI Chat** page talks to the selected provider (provider picker plus MANAGE PROVIDERS dialog for name, protocol, base URL, model fallback chain and key).
-- **Supervised agent:** the chat and `nova-cli ai agent` can call launcher tools. Read-only tools (list profiles, profile detail, crash analysis, duplicate/dependency conflict scan, redacted log tail, and compatible mod-update check) run automatically. All write tools (toggle a mod, set memory, update/install mods, export a pack, or restore a mod snapshot) require an explicit approval dialog (`[y/N]` in the CLI); denied actions do nothing. Mod updates and installs create a verified mod-file snapshot first. The Mods page lets you browse, create, and restore snapshots; restore verifies all SHA-256 hashes before changing files and saves a recovery snapshot first; later-added mods are disabled instead of deleted. Snapshots do not include worlds or configs.
+- **Supervised agent:** the chat and `nova-cli ai agent` can call launcher tools. Read-only tools (list profiles, profile detail, crash analysis, duplicate/dependency conflict scan, redacted log tail, and compatible mod-update check) run automatically. All write tools (toggle a mod, set memory, update/install mods, export a pack, or restore a mod snapshot) require an explicit approval dialog (`[y/N]` in the CLI); denied actions do nothing. Mod updates and installs create a verified mod-file snapshot first. The Mods page lets you browse, create, restore, and explicitly delete snapshots; it shows stored size and missing-file status. Restore verifies all SHA-256 hashes before changing files and saves a recovery snapshot first; later-added mods are disabled instead of deleted. Snapshot deletion requires confirmation and does not touch active mods. Snapshots do not include worlds or configs.
 - **Supervised writes with snapshots:** `install_mod`, `update_mods` and `restore_mods` create or use verified mod snapshots (`mods\.nova-mod-snapshots`) so a bad change rolls back; `export_pack` writes a pack zip into `packs\` without touching the profile. Every write shows an approval card first.
 
 ## License

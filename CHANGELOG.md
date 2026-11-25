@@ -3,13 +3,13 @@
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
 ## [Unreleased]
-- Relicense the project from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0); all releases except v2.0.0 are offered under CC BY-NC 4.0, while v2.0.0 remains under the MIT License.
-- Add THIRD-PARTY-NOTICES.md and ship it inside release packages (portable root and `bin`) so bundled .NET runtime MIT attribution travels with every package; document runtime-downloaded components (Temurin Java, Minecraft, Forge, loaders, mods).
-- Add heavier supervised agent tools behind the same approval gate with verified mod snapshots: check_mod_updates (read-only), update_mods, install_mod (Modrinth/CurseForge with dependencies), export_pack and restore_mods; the app now shows a dedicated approval card instead of a plain message box.
-- Add a Mods-page browser to list, create and restore verified mod snapshots, with file-count and timestamp details, explicit restore confirmation, full preflight verification, and an automatic recovery snapshot before restoring.
-- Add the supervised AI agent layer: tool-calling for both protocols; read-only tools (list_instances, instance_detail, analyze_crash, mod_conflicts, read_log with secret redaction, and check_mod_updates) run automatically, while every write tool requires explicit approval in the app or [y/N] in `nova-cli ai agent`.
-- Add the in-app AI Chat page (Workbench nav AI Chat) with provider picker and MANAGE PROVIDERS dialog over the BYOK layer; GUI regression covers the new page layout plus a headless chat round-trip against a local fake provider.
-- Add the bring-your-own-key AI assistant layer: `AiClient` with OpenAI-compatible and Anthropic protocols, ordered model fallback chain, DPAPI-protected API keys under `ai/`, and `nova-cli ai` commands (providers/add/key/remove/models/chat). Regression tests run against a local fake server only; the launcher control surface (agent actions) comes later.
+
+## [v2.1.12] — 2026-11-24
+- Add the BYOK AI assistant with OpenAI-compatible and Anthropic protocols, model fallback, encrypted key storage, an in-app AI Chat page, and `nova-cli ai` management commands.
+- Add a supervised agent for both protocols. Read-only diagnostics can run automatically; every write tool requires explicit approval. Mod updates and installs create verified mod snapshots.
+- Add mod snapshot management in the Mods page: show stored size and missing-file state; create, restore, or permanently delete a selected archived snapshot after confirmation. Restore preflights all files, verifies SHA-256, saves a recovery snapshot, and disables later-added mods instead of deleting them.
+- Add a dedicated AI approval card and expanded regression coverage for agent tools, snapshot integrity/recovery/deletion, and GUI workflows.
+- Relicense the project from MIT to CC BY-NC 4.0 for releases except v2.0.0, which remains MIT; add third-party notices for the bundled .NET runtime and describe external/runtime-downloaded components.
 
 ## [v2.1.11]
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.

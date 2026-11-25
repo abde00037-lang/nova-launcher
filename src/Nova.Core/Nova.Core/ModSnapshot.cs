@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Nova.Core;
 
-public sealed record ModSnapshotInfo(string Id, DateTimeOffset CreatedUtc, int FileCount);
+public sealed record ModSnapshotInfo(string Id, DateTimeOffset CreatedUtc, int FileCount, long TotalBytes, bool IsComplete);
 
 /// <summary>A verified copy of the instance's top-level mod files, not a world or full instance backup.</summary>
 public static class ModSnapshot
@@ -40,11 +40,21 @@ public static class ModSnapshot
                 string manifestPath = SafePath.ResolveWithin(directory, "manifest.json");
                 if (!File.Exists(manifestPath)) continue;
                 Manifest? manifest = JsonSerializer.Deserialize<Manifest>(await File.ReadAllTextAsync(manifestPath, ct).ConfigureAwait(false));
-                if (manifest?.Files == null || manifest.Files.Any(entry =>
-                    string.IsNullOrWhiteSpace(entry.FileName) || Path.GetFileName(entry.FileName) != entry.FileName ||
-                    !ModManager.IsModFile(entry.FileName) || entry.Sha256.Length != 64 ||
-                    !entry.Sha256.All(Uri.IsHexDigit))) continue;
-                result.Add(new ModSnapshotInfo(id, manifest.CreatedUtc, manifest.Files.Count));
+                var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (manifest?.Files == null || manifest.Files.Any(entry => entry == null ||
+                    string.IsNullOrWhiteSpace(entry.FileName) || entry.FileName.Contains('/') || entry.FileName.Contains('\\') ||
+                    Path.GetFileName(entry.FileName) != entry.FileName || !ModManager.IsModFile(entry.FileName) ||
+                    entry.Sha256 == null || entry.Sha256.Length != 64 || !entry.Sha256.All(Uri.IsHexDigit) || !names.Add(entry.FileName))) continue;
+                long totalBytes = 0;
+                bool complete = true;
+                string filesDirectory = SafePath.ResolveWithin(directory, "files");
+                foreach (Entry entry in manifest.Files)
+                {
+                    string file = SafePath.ResolveWithin(filesDirectory, entry.FileName);
+                    if (!File.Exists(file)) { complete = false; continue; }
+                    totalBytes = checked(totalBytes + new FileInfo(file).Length);
+                }
+                result.Add(new ModSnapshotInfo(id, manifest.CreatedUtc, manifest.Files.Count, totalBytes, complete));
             }
             catch (OperationCanceledException) { throw; }
             catch { /* Ignore incomplete, corrupt, or linked snapshot folders; restore verifies independently. */ }
@@ -102,6 +112,36 @@ public static class ModSnapshot
             try { if (Directory.Exists(staging)) Directory.Delete(staging, true); } catch { }
             throw;
         }
+    }
+
+    /// <summary>Permanently deletes one snapshot folder after validating its identity and link-free tree.</summary>
+    public static Task DeleteAsync(string modsDirectory, string snapshotId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotId) || snapshotId.Length != 32 || !Guid.TryParseExact(snapshotId, "N", out _))
+            throw new ArgumentException("Snapshot id must be the 32-char folder name under .nova-mod-snapshots.", nameof(snapshotId));
+        if (!Directory.Exists(modsDirectory)) throw new DirectoryNotFoundException("The instance mods folder was not found.");
+        using FileStream operationLock = ModUpdater.AcquireModLock(modsDirectory);
+        string root = SafePath.ResolveWithin(modsDirectory, ".nova-mod-snapshots");
+        string target = SafePath.ResolveWithin(root, snapshotId);
+        SafePath.RejectLinks(modsDirectory, target);
+        if (!Directory.Exists(target) || !File.Exists(SafePath.ResolveWithin(target, "manifest.json")))
+            throw new DirectoryNotFoundException("The mod snapshot was not found or has no manifest.");
+
+        var pending = new Stack<string>();
+        pending.Push(target);
+        while (pending.Count > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            string current = pending.Pop();
+            FileAttributes attributes = File.GetAttributes(current);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Snapshot contains a link or reparse point; it was not deleted.");
+            if ((attributes & FileAttributes.Directory) == 0) continue;
+            foreach (string child in Directory.EnumerateFileSystemEntries(current)) pending.Push(child);
+        }
+        ct.ThrowIfCancellationRequested();
+        Directory.Delete(target, recursive: true);
+        return Task.CompletedTask;
     }
 
     /// <summary>

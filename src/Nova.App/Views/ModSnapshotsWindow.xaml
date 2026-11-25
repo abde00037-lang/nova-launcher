@@ -16,7 +16,7 @@
     <StackPanel Grid.Row="0" Margin="0,0,0,14">
       <TextBlock Text="MOD RECOVERY" Style="{StaticResource SectionLabel}" Margin="0,0,0,4" />
       <TextBlock x:Name="HeadingText" Style="{StaticResource H1}" FontSize="19" />
-      <TextBlock Text="Snapshots include mod files only—not worlds, configs, or the full instance. Files are SHA-256 checked before restoration; a recovery snapshot is saved first, and newer mods are disabled, not deleted."
+      <TextBlock Text="Snapshots include mod files only—not worlds, configs, or the full instance. Files are SHA-256 checked before restoration; a recovery snapshot is saved first, and newer mods are disabled, not deleted. Deletion is permanent and requires confirmation."
                  Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,5,0,0" />
     </StackPanel>
 
@@ -48,6 +48,7 @@
               <StackPanel>
                 <TextBlock Text="{Binding CreatedLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" />
                 <TextBlock Text="{Binding Details}" Style="{StaticResource Muted}" FontFamily="{StaticResource MonoFont}" FontSize="10.5" Margin="0,3,0,0" />
+                <TextBlock Text="{Binding SizeLabel}" Style="{StaticResource Muted}" FontFamily="{StaticResource MonoFont}" FontSize="10" Margin="0,2,0,0" />
                 <TextBlock Text="{Binding Id}" Style="{StaticResource Muted}" FontFamily="{StaticResource MonoFont}" FontSize="9.5" Margin="0,3,0,0" Opacity="0.7" />
               </StackPanel>
               <Border Grid.Column="1" Style="{StaticResource Chip}" VerticalAlignment="Center">
@@ -61,6 +62,8 @@
 
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
       <Button Content="CLOSE" Style="{StaticResource GhostButton}" Padding="15,8" IsCancel="True" />
+      <Button Content="DELETE SELECTED" Style="{StaticResource GhostButton}" Padding="15,8" Margin="8,0,0,0"
+              automation:AutomationProperties.AutomationId="ModSnapshotsDelete" Click="Delete_Click" />
       <Button Content="RESTORE SELECTED" Style="{StaticResource PrimaryButton}" Padding="15,8" Margin="8,0,0,0"
               automation:AutomationProperties.AutomationId="ModSnapshotsRestore" Click="Restore_Click" />
     </StackPanel>

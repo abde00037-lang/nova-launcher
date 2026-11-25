@@ -221,12 +221,18 @@ internal static class Program
             Check(Descendants<Button>(dialog).Any(button =>
                       System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsRestore"),
                   "mod snapshots window exposes restore action");
+            Check(Descendants<Button>(dialog).Any(button =>
+                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsDelete"),
+                  "mod snapshots window exposes confirmed delete action");
             var list = (ListBox)(dialog.FindName("SnapshotsList") ?? throw new Exception("snapshot list missing"));
             Check(list.Items.Count == 0, "mod snapshots window shows empty state for a new fixture");
             var create = Descendants<Button>(dialog).First(button =>
                 System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsCreate");
             create.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitFor(() => list.Items.Count == 1, "snapshot UI create result");
+            await Task.Delay(100);
+            Check(Descendants<TextBlock>(dialog).Any(text => text.Text.StartsWith("size:", StringComparison.OrdinalIgnoreCase)),
+                  "mod snapshots window displays stored size");
             Check(Directory.GetDirectories(Path.Combine(mods, ".nova-mod-snapshots")).Length == 1,
                   "mod snapshots window creates a snapshot in the selected instance");
         }

@@ -288,17 +288,24 @@ try
         Check(exportOut.StartsWith("exported ") && Directory.Exists(Path.Combine(tbPaths.Root, "packs")), "agent export_pack writes into packs folder");
         byte[] dupOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar"));
         byte[] dupBOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-b.jar"));
+        byte[] disabledOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dummy-mod.jar.disabled"));
         string snap = await ModSnapshot.CreateAsync(tbMods);
         string snapId = Path.GetFileName(snap);
         var listedSnapshots = await ModSnapshot.ListAsync(tbMods);
         Check(listedSnapshots.Count == 1 && listedSnapshots[0].Id == snapId && listedSnapshots[0].FileCount >= 2,
             "mod snapshot list exposes valid snapshots and file counts");
+        Check(listedSnapshots[0].IsComplete && listedSnapshots[0].TotalBytes == dupOriginal.Length + dupBOriginal.Length + disabledOriginal.Length,
+            "mod snapshot list calculates stored size and completeness");
         string corruptSnapshot = Path.Combine(tbMods, ".nova-mod-snapshots", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(corruptSnapshot);
         File.WriteAllText(Path.Combine(corruptSnapshot, "manifest.json"),
             """{"CreatedUtc":"2026-01-01T00:00:00Z","Files":[{"FileName":"../escape.jar","Sha256":"bad"}]}""");
         Check((await ModSnapshot.ListAsync(tbMods)).Count == 1, "mod snapshot list ignores malformed or unsafe manifests");
         string snapshotDupB = Path.Combine(snap, "files", "dup-b.jar");
+        File.Delete(snapshotDupB);
+        var incompleteSnapshots = await ModSnapshot.ListAsync(tbMods);
+        Check(incompleteSnapshots.Count == 1 && !incompleteSnapshots[0].IsComplete,
+            "mod snapshot list flags missing snapshot files");
         File.WriteAllText(snapshotDupB, "tampered snapshot content");
         File.WriteAllText(Path.Combine(tbMods, "dup-a.jar"), "before failed restore");
         try
@@ -320,6 +327,14 @@ try
             "restore recovery snapshot preserves the pre-restore mod content");
         Check(File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar")).SequenceEqual(dupOriginal), "restore_mods copies verified snapshot content back");
         Check(File.Exists(Path.Combine(tbMods, "extra-mod.jar.disabled")), "restore_mods disables mods added after snapshot");
+        await ModSnapshot.DeleteAsync(tbMods, recoveryId);
+        Check(!Directory.Exists(Path.Combine(tbMods, ".nova-mod-snapshots", recoveryId)) &&
+              Directory.Exists(Path.Combine(tbMods, ".nova-mod-snapshots", snapId)),
+            "deleting a mod snapshot preserves its siblings");
+        Check(File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar")).SequenceEqual(dupOriginal),
+            "deleting a mod snapshot leaves installed mods untouched");
+        try { await ModSnapshot.DeleteAsync(tbMods, "../escape"); throw new Exception("FAIL unsafe snapshot delete accepted"); }
+        catch (ArgumentException) { Console.WriteLine("PASS mod snapshot deletion rejects unsafe ids"); }
         Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"zz\"}"))).StartsWith("snapshot id must"), "agent restore_mods rejects bad snapshot id");
         Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "install_mod", "{\"id\":\"nope\",\"slug\":\"x\"}"))).StartsWith("unknown instance"), "agent install_mod validates instance");
 
