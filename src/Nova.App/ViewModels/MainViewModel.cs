@@ -1524,6 +1524,17 @@ public sealed partial class MainViewModel : ObservableObject
 		AppendConsole("OK", $"Nova Workbench v{LauncherUpdater.CurrentVersion} started. Portable root: {paths.Root}");
 		AppendConsole("INFO", $"Update channel: github.com/{UpdateRepoSlug}");
 		AppendConsole("INFO", "Assets, libraries, mods, and worlds are never deleted during launcher updates.");
+		try
+		{
+			string updateResult = Path.Combine(paths.Cache, "launcher-update", "last-update-result.txt");
+			if (File.Exists(updateResult))
+			{
+				string resultText = File.ReadAllText(updateResult);
+				AppendConsole(resultText.StartsWith("SUCCESS:", StringComparison.Ordinal) ? "OK" : "WARN", "updater: " + resultText);
+			}
+		}
+		catch { }
+
 		FlushConsole();
 		if (Settings.AutoCheckUpdates)
 		{

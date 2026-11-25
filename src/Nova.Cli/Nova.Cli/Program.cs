@@ -801,7 +801,7 @@ internal static class Program
 				? executableDir
 				: Path.Combine(_paths.Root, "bin");
 			LauncherUpdater.LaunchDetachedSwapper(staged, targetBin, Environment.ProcessId, relaunchGui: false);
-			Row("applied", "staged swapper launched -> " + targetBin);
+			Row("status", "installer started; check cache/launcher-update/last-update-result.txt for the final result");
 		}
 		Console.WriteLine();
 		return 0;

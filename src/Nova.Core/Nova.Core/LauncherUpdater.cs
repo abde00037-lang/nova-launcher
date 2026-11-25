@@ -167,47 +167,20 @@ public static class LauncherUpdater
 		}
 		using HttpClient checksumClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 		checksumClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NovaWorkbench/" + CurrentVersion);
-		string sums = await checksumClient.GetStringAsync(update.ChecksumUrl, ct).ConfigureAwait(false);
+		string sums = await DownloadChecksumsAsync(checksumClient, update.ChecksumUrl, ct).ConfigureAwait(false);
 		string expectedHash = ExpectedSha256(sums, update.AssetName);
 
 		string workRoot = Path.Combine(paths.Cache, "launcher-update");
-		string zipPath = Path.Combine(workRoot, $"nova-update-{update.LatestVersion}.zip");
-		string extractDir = Path.Combine(workRoot, "extracted");
-		string stagedDir = Path.Combine(workRoot, "staged");
-
-		if (Directory.Exists(extractDir))
-		{
-			Directory.Delete(extractDir, recursive: true);
-		}
-		if (Directory.Exists(stagedDir))
-		{
-			Directory.Delete(stagedDir, recursive: true);
-		}
+		SafePath.RejectLinks(paths.Root, workRoot);
 		Directory.CreateDirectory(workRoot);
+		using FileStream updateLock = await AcquireUpdateLockAsync(workRoot, ct).ConfigureAwait(false);
+		string partial = Path.Combine(workRoot, "download-" + expectedHash.ToLowerInvariant() + ".part");
+		SafePath.RejectLinks(workRoot, partial);
+		string unique = Guid.NewGuid().ToString("N");
+		string extractDir = Path.Combine(workRoot, "extract-" + unique);
+		string stagedDir = Path.Combine(workRoot, "stage-" + unique);
+		string zipPath = await UpdateDownloader.FetchAsync(update.DownloadUrl, partial, expectedHash, update.AssetSizeBytes, log, ct).ConfigureAwait(false);
 
-		if (File.Exists(zipPath))
-		{
-			File.Delete(zipPath);
-		}
-		log?.Report($"downloading {update.AssetName ?? "update package"} ({Math.Max(1.0, update.AssetSizeBytes / 1024.0):0} KB)…");
-		using (Downloader downloader = new Downloader(2))
-		{
-			FetchResult fetched = await downloader.EnsureAsync(zipPath, update.DownloadUrl, null, ct).ConfigureAwait(continueOnCapturedContext: false);
-			if (fetched == FetchResult.Failed || fetched == FetchResult.HashMismatch || !File.Exists(zipPath))
-			{
-				throw new IOException("Failed to download update archive from GitHub Releases. " + (downloader.LastError ?? "Check your connection and retry."));
-			}
-		}
-
-		log?.Report("verifying update SHA-256…");
-		await using (FileStream file = new FileStream(zipPath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true))
-		{
-			string actualHash = Convert.ToHexString(await SHA256.HashDataAsync(file, ct).ConfigureAwait(false));
-			if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
-			{
-				throw new InvalidDataException("Update SHA-256 mismatch; no files were installed.");
-			}
-		}
 		try
 		{
 			using ZipArchive archive = ZipFile.OpenRead(zipPath);
@@ -220,27 +193,75 @@ public static class LauncherUpdater
 			throw;
 		}
 
-		// Support archives where files are either directly at root or inside a bin\ subfolder
-		string binCandidate = Path.Combine(extractDir, "bin");
-		string sourceBin = ((Directory.Exists(binCandidate) && File.Exists(Path.Combine(binCandidate, "Nova.Core.dll"))) ? binCandidate : extractDir);
-
-		if (!File.Exists(Path.Combine(sourceBin, "Nova.Core.dll")))
+		try
 		{
-			string? nestedCore = Directory.GetFiles(extractDir, "Nova.Core.dll", SearchOption.AllDirectories).FirstOrDefault();
-			if (nestedCore != null)
+			// Support both OTA archives and portable bundles while requiring a complete runtime.
+			string binCandidate = Path.Combine(extractDir, "bin");
+			string sourceBin = (Directory.Exists(binCandidate) && File.Exists(Path.Combine(binCandidate, "Nova.Core.dll"))) ? binCandidate : extractDir;
+			if (!File.Exists(Path.Combine(sourceBin, "Nova.Core.dll")))
 			{
-				sourceBin = Path.GetDirectoryName(nestedCore)!;
+				string? nestedCore = Directory.GetFiles(extractDir, "Nova.Core.dll", SearchOption.AllDirectories).FirstOrDefault();
+				if (nestedCore != null) sourceBin = Path.GetDirectoryName(nestedCore)!;
 			}
+			foreach (string required in new[] { "Nova.exe", "Nova.dll", "Nova.Core.dll", "nova-cli.exe", "Nova.runtimeconfig.json", "nova-cli.runtimeconfig.json", "coreclr.dll", "hostfxr.dll", "hostpolicy.dll" })
+				if (!File.Exists(Path.Combine(sourceBin, required))) throw new InvalidDataException("Update archive is incomplete: " + required);
+			foreach (string config in new[] { "Nova.runtimeconfig.json", "nova-cli.runtimeconfig.json" })
+			{
+				using JsonDocument doc = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(sourceBin, config), ct).ConfigureAwait(false));
+				if (!doc.RootElement.TryGetProperty("runtimeOptions", out var opts) || !opts.TryGetProperty("includedFrameworks", out var frameworks) || frameworks.ValueKind != JsonValueKind.Array || frameworks.GetArrayLength() == 0 || opts.TryGetProperty("frameworks", out _))
+					throw new InvalidDataException("Update has an incompatible runtime configuration: " + config);
+			}
+			Directory.Move(sourceBin, stagedDir);
+			if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
+			log?.Report($"staged v{update.LatestVersion} cleanly ({Directory.GetFiles(stagedDir).Length} binary files)");
+			return stagedDir;
 		}
-
-		if (!File.Exists(Path.Combine(sourceBin, "Nova.Core.dll")))
+		catch
 		{
-			throw new InvalidDataException("Downloaded update archive does not contain Nova.Core.dll.");
+			if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
+			if (Directory.Exists(stagedDir)) Directory.Delete(stagedDir, true);
+			throw;
 		}
+	}
 
-		Directory.Move(sourceBin, stagedDir);
-		log?.Report($"staged v{update.LatestVersion} cleanly ({Directory.GetFiles(stagedDir).Length} binary files)");
-		return stagedDir;
+	private static async Task<string> DownloadChecksumsAsync(HttpClient client, string url, CancellationToken ct)
+	{
+		Exception? last = null;
+		for (int i = 0; i < 3; i++)
+		{
+			try
+			{
+				using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+				response.EnsureSuccessStatusCode();
+				if (response.Content.Headers.ContentLength > 1024 * 1024) throw new InvalidDataException("Checksum file is too large.");
+				await using Stream input = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+				using var memory = new MemoryStream();
+				byte[] buffer = new byte[8192]; int n;
+				while ((n = await input.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+				{
+					if (memory.Length + n > 1024 * 1024) throw new InvalidDataException("Checksum file is too large.");
+					memory.Write(buffer, 0, n);
+				}
+				return Encoding.UTF8.GetString(memory.ToArray());
+			}
+			catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+			catch (Exception ex) when (ex is HttpRequestException || ex is IOException || ex is OperationCanceledException)
+			{ last = ex; if (i < 2) await Task.Delay(500 * (i + 1), ct).ConfigureAwait(false); }
+		}
+		throw new IOException("Could not download update checksums. Check your connection and retry.", last);
+	}
+
+	private static async Task<FileStream> AcquireUpdateLockAsync(string workRoot, CancellationToken ct)
+	{
+		string file = Path.Combine(workRoot, "update.lock");
+		SafePath.RejectLinks(workRoot, file);
+		while (true)
+		{
+			ct.ThrowIfCancellationRequested();
+			try { return new FileStream(file, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+			catch (IOException ex) when (OperatingSystem.IsWindows() ? ((ex.HResult & 0xffff) == 32 || (ex.HResult & 0xffff) == 33) : (ex.HResult & 0xffff) == 11)
+			{ await Task.Delay(150, ct).ConfigureAwait(false); }
+		}
 	}
 
 	/// <summary>
@@ -249,35 +270,124 @@ public static class LauncherUpdater
 	/// </summary>
 	public static void LaunchDetachedSwapper(string stagedDir, string targetBinDir, int waitForPid, bool relaunchGui, string? logFilePath = null)
 	{
-		Directory.CreateDirectory(targetBinDir);
-		string scriptPath = Path.Combine(Path.GetDirectoryName(stagedDir) ?? Path.GetTempPath(), "apply-nova-update.ps1");
-		string novaExe = Path.Combine(targetBinDir, "Nova.exe");
-		string logLine = (string.IsNullOrWhiteSpace(logFilePath) ? "" : $"Add-Content -Path '{EscapePs(logFilePath)}' -Value \"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  updater applied staged files to {EscapePs(targetBinDir)}\" -ErrorAction SilentlyContinue");
-
-		StringBuilder sb = new StringBuilder();
-		sb.AppendLine("$ErrorActionPreference = 'SilentlyContinue'");
-		if (waitForPid > 0)
-		{
-			sb.AppendLine($"for ($i = 0; $i -lt 60; $i++) {{");
-			sb.AppendLine($"    $p = Get-Process -Id {waitForPid} -ErrorAction SilentlyContinue");
-			sb.AppendLine($"    if ($null -eq $p) {{ break }}");
-			sb.AppendLine($"    Start-Sleep -Milliseconds 200");
-			sb.AppendLine($"}}");
-			sb.AppendLine($"Stop-Process -Id {waitForPid} -Force -ErrorAction SilentlyContinue");
-			sb.AppendLine("Start-Sleep -Milliseconds 350");
-		}
-		sb.AppendLine($"Copy-Item -Path '{EscapePs(stagedDir)}\\*' -Destination '{EscapePs(targetBinDir)}' -Recurse -Force");
-		if (!string.IsNullOrEmpty(logLine))
-		{
-			sb.AppendLine(logLine);
-		}
-		if (relaunchGui)
-		{
-			sb.AppendLine($"if (Test-Path '{EscapePs(novaExe)}') {{ Start-Process -FilePath '{EscapePs(novaExe)}' -WorkingDirectory '{EscapePs(targetBinDir)}' }}");
-		}
+		stagedDir = Path.GetFullPath(stagedDir);
+		targetBinDir = Path.GetFullPath(targetBinDir);
+		if (!Directory.Exists(stagedDir) || !Directory.Exists(targetBinDir)) throw new DirectoryNotFoundException("Update stage or target bin is missing.");
+		SafePath.RejectLinks(stagedDir, stagedDir);
+		SafePath.RejectLinks(targetBinDir, targetBinDir);
+		string workRoot = Path.GetDirectoryName(stagedDir) ?? throw new InvalidOperationException("Update stage has no parent.");
+		string unique = Guid.NewGuid().ToString("N");
+		string scriptPath = Path.Combine(workRoot, "apply-" + unique + ".ps1");
+		string backupDir = Path.Combine(workRoot, "backup-" + unique);
+		string statusFile = Path.Combine(workRoot, "last-update-result.txt");
+		var sb = new StringBuilder();
+		sb.AppendLine("$stage = '" + EscapePs(stagedDir) + "'");
+		sb.AppendLine("$target = '" + EscapePs(targetBinDir) + "'");
+		sb.AppendLine("$backup = '" + EscapePs(backupDir) + "'");
+		sb.AppendLine("$status = '" + EscapePs(statusFile) + "'");
+		sb.AppendLine("$log = '" + EscapePs(logFilePath ?? "") + "'");
+		sb.AppendLine("$waitPid = " + Math.Max(0, waitForPid));
+		sb.AppendLine("$relaunch = " + (relaunchGui ? "$true" : "$false"));
+		sb.AppendLine("""
+$ErrorActionPreference = 'Stop'
+function Log([string]$message) {
+    try { [IO.File]::WriteAllText($status, $message) } catch { }
+    if ($log) { try { Add-Content -LiteralPath $log -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') updater: $message" } catch { } }
+}
+function CheckLinks([string]$base, [string]$path) {
+    $root = [IO.Path]::GetFullPath($base).TrimEnd('\') + '\'
+    $full = [IO.Path]::GetFullPath($path)
+    if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw 'Update path outside target' }
+    $current = $base
+    if (([IO.File]::GetAttributes($current) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Update root is a link' }
+    foreach ($part in $full.Substring($root.Length).Split('\')) {
+        $current = Join-Path $current $part
+        if (Test-Path -LiteralPath $current) {
+            if (([IO.File]::GetAttributes($current) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Update target contains a link' }
+        }
+    }
+}
+function CopyRetry([string]$from, [string]$to) {
+    for ($i=0; $i -lt 4; $i++) {
+        try { Copy-Item -LiteralPath $from -Destination $to -Force -ErrorAction Stop; return }
+        catch { if ($i -eq 3) { throw }; Start-Sleep -Milliseconds 400 }
+    }
+}
+$applied = New-Object 'System.Collections.Generic.List[object]'
+$records = New-Object 'System.Collections.Generic.List[object]'
+$installLock = $null
+try {
+    $lockFile = Join-Path $target '.nova-update.lock'
+    CheckLinks $target $lockFile
+    for ($i=0; $i -lt 300; $i++) {
+        try { $installLock = [IO.File]::Open($lockFile, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None); break }
+        catch [IO.IOException] { Start-Sleep -Milliseconds 200 }
+    }
+    if ($null -eq $installLock) { throw 'Another update is still being installed' }
+    if ($waitPid -gt 0) {
+        for ($i=0; $i -lt 300; $i++) {
+            if ($null -eq (Get-Process -Id $waitPid -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Milliseconds 200
+        }
+        if ($null -ne (Get-Process -Id $waitPid -ErrorAction SilentlyContinue)) { throw 'Launcher did not exit; update was not applied' }
+    }
+    New-Item -ItemType Directory -Path $backup -ErrorAction Stop | Out-Null
+    $root = [IO.Path]::GetFullPath($stage).TrimEnd('\') + '\'
+    $files = @(Get-ChildItem -LiteralPath $stage -File -Recurse -Force)
+    if ($files.Count -eq 0) { throw 'Update stage is empty' }
+    $i = 0
+    foreach ($f in $files) {
+        CheckLinks $stage $f.FullName
+        $rel = $f.FullName.Substring($root.Length)
+        $top = $rel.Split('\')[0]
+        if ($top -in @('data','instances','saves','mods','accounts','cache','settings.json','.nova-update.lock')) { throw 'Update contains a reserved data path' }
+        $dest = [IO.Path]::GetFullPath((Join-Path $target $rel))
+        CheckLinks $target $dest
+        if ((Test-Path -LiteralPath $dest) -and -not (Test-Path -LiteralPath $dest -PathType Leaf)) { throw 'Update file conflicts with a directory' }
+        $old = Test-Path -LiteralPath $dest -PathType Leaf
+        $saved = Join-Path $backup ([string]$i)
+        if ($old) {
+            CopyRetry $dest $saved
+            if ((Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash) { throw 'Could not verify update backup' }
+        }
+        $records.Add([pscustomobject]@{ Source=$f.FullName; Target=$dest; Saved=$saved; Existed=$old })
+        $i++
+    }
+    foreach ($record in $records) {
+        CheckLinks $target $record.Target
+        $parent = [IO.Path]::GetDirectoryName($record.Target)
+        if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+        $applied.Add($record)
+        CopyRetry $record.Source $record.Target
+        if ((Get-FileHash -LiteralPath $record.Source -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $record.Target -Algorithm SHA256).Hash) { throw 'Installed file verification failed' }
+    }
+    Log 'SUCCESS: update installed'
+    try { Remove-Item -LiteralPath $backup -Recurse -Force } catch { }
+    if ($relaunch) { try { Start-Process -FilePath (Join-Path $target 'Nova.exe') -WorkingDirectory $target } catch { Log ('SUCCESS: updated, but restart failed: ' + $_.Exception.Message) } }
+}
+catch {
+    $reason = $_.Exception.Message
+    $rollbackFailed = $false
+    for ($i=$applied.Count-1; $i -ge 0; $i--) {
+        $record=$applied[$i]
+        try {
+            CheckLinks $target $record.Target
+            if ($record.Existed) { CopyRetry $record.Saved $record.Target }
+            elseif (Test-Path -LiteralPath $record.Target) { Remove-Item -LiteralPath $record.Target -Force -ErrorAction Stop }
+        } catch { $rollbackFailed = $true }
+    }
+    if ($rollbackFailed) { Log ('ROLLBACK_FAILED: ' + $reason + '; backup retained at ' + $backup) }
+    else { Log ('ROLLED_BACK: ' + $reason); try { if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force } } catch { } }
+    if ($relaunch) {
+        try { Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(('Nova update failed: ' + $reason + $(if ($rollbackFailed) { "`nBackup retained at: " + $backup } else { "`nChanges were rolled back." })), 'Nova updater') | Out-Null } catch { }
+        if (-not $rollbackFailed) { try { Start-Process -FilePath (Join-Path $target 'Nova.exe') -WorkingDirectory $target } catch { } }
+    }
+    exit 1
+}
+finally { if ($null -ne $installLock) { $installLock.Dispose() } }
+""");
 		File.WriteAllText(scriptPath, sb.ToString(), Encoding.UTF8);
-
-		Process.Start(new ProcessStartInfo
+		Process? process = Process.Start(new ProcessStartInfo
 		{
 			FileName = "powershell.exe",
 			Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
@@ -285,6 +395,8 @@ public static class LauncherUpdater
 			CreateNoWindow = true,
 			WorkingDirectory = Path.GetTempPath()
 		});
+		if (process == null) throw new IOException("Could not launch the update installer.");
+		process.Dispose();
 	}
 
 	public static string ExpectedSha256(string sums, string assetName)

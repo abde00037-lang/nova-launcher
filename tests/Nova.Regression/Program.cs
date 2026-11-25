@@ -64,12 +64,56 @@ try
     {
         string url = fixture.Url;
         var update = new LauncherUpdateInfo("1", "2", "v2", "test", "", "", url + "/asset.zip", "nova-bin-win-x64.zip", 0, null, url + "/SHA256SUMS.txt");
+        update = update with { AssetSizeBytes = fixture.Size };
         string staged = await LauncherUpdater.StageUpdateAsync(paths, update);
         Check(File.Exists(Path.Combine(staged, "Nova.Core.dll")), "valid update staged");
         File.WriteAllText(Path.Combine(root, "sentinel"), "safe");
         var bad = update with { ChecksumUrl = url + "/BADSUMS.txt" };
         try { await LauncherUpdater.StageUpdateAsync(paths, bad); throw new Exception("accepted mismatch"); } catch (InvalidDataException) { Console.WriteLine("PASS checksum mismatch rejected before staging"); }
         Check(File.ReadAllText(Path.Combine(root, "sentinel")) == "safe", "data unchanged");
+        foreach (string kind in new[] { "incomplete", "badconfig" })
+        {
+            var invalidPackage = update with { DownloadUrl = url + "/" + kind + ".zip", ChecksumUrl = url + "/" + kind + ".txt", AssetSizeBytes = 0 };
+            try { await LauncherUpdater.StageUpdateAsync(new LauncherPaths(Path.Combine(root, kind)), invalidPackage); throw new Exception("accepted incomplete update"); }
+            catch (InvalidDataException) { Console.WriteLine("PASS " + kind + " update rejected before installation"); }
+        }
+        var resumePaths = new LauncherPaths(Path.Combine(root, "resume"));
+        string resumed = await LauncherUpdater.StageUpdateAsync(resumePaths, update with { DownloadUrl = url + "/flaky.zip" });
+        Check(File.Exists(Path.Combine(resumed, "Nova.exe")) && fixture.RangeRequests > 0, "interrupted update resumes using byte ranges");
+        var ignorePaths = new LauncherPaths(Path.Combine(root, "ignored-range"));
+        string ignored = await LauncherUpdater.StageUpdateAsync(ignorePaths, update with { DownloadUrl = url + "/ignore.zip" });
+        Check(File.Exists(Path.Combine(ignored, "Nova.exe")), "server ignoring Range safely restarts transfer");
+        var badRangePaths = new LauncherPaths(Path.Combine(root, "bad-range"));
+        try { await LauncherUpdater.StageUpdateAsync(badRangePaths, update with { DownloadUrl = url + "/bad-range.zip" }); throw new Exception("accepted bad Range"); }
+        catch (InvalidDataException) { Console.WriteLine("PASS invalid content range rejected"); }
+        var cancelPaths = new LauncherPaths(Path.Combine(root, "cancel-stage"));
+        using (var cancellation = new CancellationTokenSource())
+        {
+            var cancelProgress = new InlineProgress<string>(message => { if (message.StartsWith("connection interrupted")) cancellation.Cancel(); });
+            try { await LauncherUpdater.StageUpdateAsync(cancelPaths, update with { DownloadUrl = url + "/cancel.zip" }, cancelProgress, cancellation.Token); throw new Exception("accepted cancelled update"); }
+            catch (OperationCanceledException) { Console.WriteLine("PASS update cancellation propagates"); }
+        }
+        Check(Directory.GetFiles(Path.Combine(cancelPaths.Cache, "launcher-update"), "*.part").Any(f => new FileInfo(f).Length > 0), "cancelled update preserves partial bytes");
+        string afterCancel = await LauncherUpdater.StageUpdateAsync(cancelPaths, update with { DownloadUrl = url + "/cancel.zip" });
+        Check(File.Exists(Path.Combine(afterCancel, "Nova.exe")), "later update resumes after cancellation");
+        var lockPaths = new LauncherPaths(Path.Combine(root, "locked-stage"));
+        string lockDir = Path.Combine(lockPaths.Cache, "launcher-update"); Directory.CreateDirectory(lockDir);
+        using (var held = new FileStream(Path.Combine(lockDir, "update.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        using (var cancelled = new CancellationTokenSource(300))
+        {
+            try { await LauncherUpdater.StageUpdateAsync(lockPaths, update, ct: cancelled.Token); throw new Exception("accepted cancelled lock wait"); }
+            catch (OperationCanceledException) { Console.WriteLine("PASS cancellation while waiting for update lock"); }
+        }
+        var stalePaths = new LauncherPaths(Path.Combine(root, "stale-cache"));
+        string staleDir = Path.Combine(stalePaths.Cache, "launcher-update"); Directory.CreateDirectory(staleDir);
+        File.WriteAllBytes(Path.Combine(staleDir, "download-" + fixture.Hash.ToLowerInvariant() + ".part"), new byte[fixture.Size]);
+        string freshStage = await LauncherUpdater.StageUpdateAsync(stalePaths, update);
+        Check(File.Exists(Path.Combine(freshStage, "Nova.exe")), "corrupt completed cache discarded and re-downloaded");
+        var samePaths = new LauncherPaths(Path.Combine(root, "parallel-stage"));
+        var twoStages = await Task.WhenAll(LauncherUpdater.StageUpdateAsync(samePaths, update), LauncherUpdater.StageUpdateAsync(samePaths, update));
+        Check(twoStages[0] != twoStages[1] && twoStages.All(Directory.Exists), "parallel update staging is serialized and isolated");
+        if (OperatingSystem.IsWindows()) await UpdaterSwapperRegression.Run(root);
+
     }
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
@@ -83,13 +127,39 @@ sealed class UpdateFixture : IAsyncDisposable
     private readonly byte[] zip;
     private readonly byte[] good;
     private readonly byte[] bad;
+    private readonly byte[] incomplete, badConfig;
     public string Url { get; }
+    public int Size => zip.Length;
+    public string Hash => Convert.ToHexString(SHA256.HashData(zip));
+    public int RangeRequests { get; private set; }
+    private int flakyCount, ignoreCount, badRangeCount, cancelCount;
     public UpdateFixture()
     {
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, true))
-        using (var writer = new StreamWriter(archive.CreateEntry("Nova.Core.dll").Open())) writer.Write("test binary only");
+        {
+            foreach (string file in new[] { "Nova.exe", "Nova.dll", "Nova.Core.dll", "nova-cli.exe", "coreclr.dll", "hostfxr.dll", "hostpolicy.dll", "Nova.runtimeconfig.json", "nova-cli.runtimeconfig.json" })
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(file).Open());
+                writer.Write(file.EndsWith(".json") ? "{\"runtimeOptions\":{\"includedFrameworks\":[{\"name\":\"Microsoft.NETCore.App\",\"version\":\"8.0.0\"}]}}" : "test binary only");
+            }
+        }
         zip = memory.ToArray();
+        using (var a = new MemoryStream())
+        {
+            using (var z = new ZipArchive(a, ZipArchiveMode.Create, true))
+            using (var w = new StreamWriter(z.CreateEntry("Nova.Core.dll").Open())) w.Write("incomplete");
+            incomplete = a.ToArray();
+        }
+        using (var b = new MemoryStream())
+        {
+            using (var z = new ZipArchive(b, ZipArchiveMode.Create, true))
+            {
+                foreach (string file in new[] { "Nova.exe", "Nova.dll", "Nova.Core.dll", "nova-cli.exe", "coreclr.dll", "hostfxr.dll", "hostpolicy.dll", "Nova.runtimeconfig.json", "nova-cli.runtimeconfig.json" })
+                { using var w = new StreamWriter(z.CreateEntry(file).Open()); w.Write(file.EndsWith(".json") ? "{\"runtimeOptions\":{\"frameworks\":[]}}" : "test"); }
+            }
+            badConfig = b.ToArray();
+        }
         good = Encoding.ASCII.GetBytes(Convert.ToHexString(SHA256.HashData(zip)) + "  nova-bin-win-x64.zip\n");
         bad = Encoding.ASCII.GetBytes(new string('0', 64) + "  nova-bin-win-x64.zip\n");
         listener.Start();
@@ -106,11 +176,31 @@ sealed class UpdateFixture : IAsyncDisposable
                 using NetworkStream stream = client.GetStream();
                 using var reader = new StreamReader(stream, Encoding.ASCII, false, 4096, true);
                 string line = await reader.ReadLineAsync() ?? "";
-                string? header;
-                do { header = await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(header));
-                byte[] body = line.Contains("/asset.zip ") ? zip : line.Contains("/BADSUMS.txt ") ? bad : good;
-                byte[] prefix = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
-                await stream.WriteAsync(prefix); await stream.WriteAsync(body);
+                string? header; long offset = 0;
+                do { header = await reader.ReadLineAsync(); if (header != null && header.StartsWith("Range: bytes=", StringComparison.OrdinalIgnoreCase)) { offset = long.Parse(header.Split('=')[1].Split('-')[0]); RangeRequests++; } } while (!string.IsNullOrEmpty(header));
+                bool flaky = line.Contains("/flaky.zip "), ignored = line.Contains("/ignore.zip "), invalid = line.Contains("/bad-range.zip "), cancelled = line.Contains("/cancel.zip ");
+                bool zipRequest = line.Contains("/asset.zip ") || flaky || ignored || invalid || cancelled;
+                byte[] body = line.Contains("/incomplete.zip ") ? incomplete : line.Contains("/badconfig.zip ") ? badConfig :
+                    line.Contains("/incomplete.txt ") ? Encoding.ASCII.GetBytes(Convert.ToHexString(SHA256.HashData(incomplete)) + "  nova-bin-win-x64.zip\n") :
+                    line.Contains("/badconfig.txt ") ? Encoding.ASCII.GetBytes(Convert.ToHexString(SHA256.HashData(badConfig)) + "  nova-bin-win-x64.zip\n") :
+                    zipRequest ? zip : line.Contains("/BADSUMS.txt ") ? bad : good;
+                bool firstFault = flaky ? ++flakyCount == 1 : ignored ? ++ignoreCount == 1 : invalid ? ++badRangeCount == 1 : cancelled ? ++cancelCount == 1 : false;
+                if (firstFault)
+                {
+                    byte[] head = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                    await stream.WriteAsync(head); await stream.WriteAsync(body.AsMemory(0, body.Length / 2));
+                }
+                else if (offset > 0 && !ignored)
+                {
+                    long reported = invalid ? offset + 1 : offset;
+                    byte[] head = Encoding.ASCII.GetBytes($"HTTP/1.1 206 Partial Content\r\nContent-Length: {body.Length - offset}\r\nContent-Range: bytes {reported}-{body.Length - 1}/{body.Length}\r\nConnection: close\r\n\r\n");
+                    await stream.WriteAsync(head); await stream.WriteAsync(body.AsMemory((int)offset));
+                }
+                else
+                {
+                    byte[] head = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                    await stream.WriteAsync(head); await stream.WriteAsync(body);
+                }
             }
         }
         catch (OperationCanceledException) { }

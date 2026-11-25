@@ -37,13 +37,13 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.5
+## Latest update — v2.1.6
 
-- Modpack download progress, alternate sources, retries, and missing-file reports.
-- Clearer Minecraft client and Forge installer failures; earlier archive safety improvements remain.
-- Back up data before updating; check incomplete imports before playing.
+- Update downloads resume after interruptions and are checked with SHA-256.
+- The installer verifies files and attempts rollback if copying fails.
+- Back up data before updating; rollback cannot guarantee recovery from every interruption.
 
-[Download v2.1.5](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.5) · [Full changelog](CHANGELOG.md)
+[Download v2.1.6](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.6) · [Full changelog](CHANGELOG.md)
 
 ---
 
