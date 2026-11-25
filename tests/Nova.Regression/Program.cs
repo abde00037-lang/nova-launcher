@@ -263,14 +263,14 @@ try
         var tbStore = new InstanceStore(tbPaths);
         tbStore.Save(new InstanceConfig { Id = "t1", Name = "T1", GameDirectory = tbGame, VersionId = "1.20.1-fabric" });
         File.WriteAllText(Path.Combine(tbGame, "logs", "latest.log"), "line1\nauthorization: supersecrettoken\nline3\n");
-        string logOut = AiToolbox.Handle(tbPaths, new AiToolCall("x", "read_log", "{\"id\":\"t1\",\"lines\":20}"));
+        string logOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "read_log", "{\"id\":\"t1\",\"lines\":20}"));
         Check(logOut.Contains("REDACTED") && !logOut.Contains("supersecrettoken"), "agent read_log redacts secrets");
         File.WriteAllText(Path.Combine(tbMods, "dummy-mod.jar"), "x");
-        AiToolbox.Handle(tbPaths, new AiToolCall("x", "toggle_mod", "{\"id\":\"t1\",\"file\":\"dummy-mod.jar\",\"enabled\":false}"));
+        await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "toggle_mod", "{\"id\":\"t1\",\"file\":\"dummy-mod.jar\",\"enabled\":false}"));
         Check(File.Exists(Path.Combine(tbMods, "dummy-mod.jar.disabled")), "agent toggle_mod disables mod file");
-        AiToolbox.Handle(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":8192}"));
+        await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":8192}"));
         Check(tbStore.Find("t1")!.MemoryMb == 8192, "agent set_memory_mb persists");
-        Check(AiToolbox.Handle(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":99}")).StartsWith("memory must"), "agent memory out of range rejected");
+        Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "set_memory_mb", "{\"id\":\"t1\",\"mb\":99}"))).StartsWith("memory must"), "agent memory out of range rejected");
         void FakeModJar(string file, string modid)
         {
             using var fs = File.Create(Path.Combine(tbMods, file));
@@ -281,8 +281,22 @@ try
         }
         FakeModJar("dup-a.jar", "dupmod");
         FakeModJar("dup-b.jar", "dupmod");
-        string conflicts = AiToolbox.Handle(tbPaths, new AiToolCall("x", "mod_conflicts", "{\"id\":\"t1\"}"));
+        string conflicts = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "mod_conflicts", "{\"id\":\"t1\"}"));
         Check(conflicts.Contains("duplicate modid dupmod"), "agent mod_conflicts finds duplicate modids");
+        Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "check_mod_updates", "{\"id\":\"t1\"}"))) == "mods are up to date", "agent check_mod_updates empty mods offline");
+        string exportOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "export_pack", "{\"id\":\"t1\"}"));
+        Check(exportOut.StartsWith("exported ") && Directory.Exists(Path.Combine(tbPaths.Root, "packs")), "agent export_pack writes into packs folder");
+        byte[] dupOriginal = File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar"));
+        string snap = await ModSnapshot.CreateAsync(tbMods);
+        string snapId = Path.GetFileName(snap);
+        File.WriteAllBytes(Path.Combine(tbMods, "dup-a.jar"), Encoding.UTF8.GetBytes("changed-content"));
+        File.WriteAllText(Path.Combine(tbMods, "extra-mod.jar"), "new");
+        string restoreOut = await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"" + snapId + "\"}"));
+        Check(restoreOut.StartsWith("restored "), "agent restore_mods round trip");
+        Check(File.ReadAllBytes(Path.Combine(tbMods, "dup-a.jar")).SequenceEqual(dupOriginal), "restore_mods copies verified snapshot content back");
+        Check(File.Exists(Path.Combine(tbMods, "extra-mod.jar.disabled")), "restore_mods disables mods added after snapshot");
+        Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "restore_mods", "{\"id\":\"t1\",\"snapshot\":\"zz\"}"))).StartsWith("snapshot id must"), "agent restore_mods rejects bad snapshot id");
+        Check((await AiToolbox.HandleAsync(tbPaths, new AiToolCall("x", "install_mod", "{\"id\":\"nope\",\"slug\":\"x\"}"))).StartsWith("unknown instance"), "agent install_mod validates instance");
 
     }
 }

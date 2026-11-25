@@ -138,10 +138,17 @@ public static class AiToolbox
 		new AiToolSpec("mod_conflicts", "Detect duplicate mod ids and missing required dependencies inside a profile's mods folder.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"],\"additionalProperties\":false}", true),
 		new AiToolSpec("read_log", "Return the tail of a profile's logs/latest.log with secrets redacted.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"lines\":{\"type\":\"integer\"}},\"required\":[\"id\"],\"additionalProperties\":false}", true),
 		new AiToolSpec("toggle_mod", "Enable or disable one mod file of a profile (rename to .disabled). Writes to the mods folder.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"file\":{\"type\":\"string\"},\"enabled\":{\"type\":\"boolean\"}},\"required\":[\"id\",\"file\",\"enabled\"],\"additionalProperties\":false}", false),
-		new AiToolSpec("set_memory_mb", "Set the instance memory limit in MB (1024-32768). Writes the instance config.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"mb\":{\"type\":\"integer\"}},\"required\":[\"id\",\"mb\"],\"additionalProperties\":false}", false)
+		new AiToolSpec("set_memory_mb", "Set the instance memory limit in MB (1024-32768). Writes the instance config.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"mb\":{\"type\":\"integer\"}},\"required\":[\"id\",\"mb\"],\"additionalProperties\":false}", false),
+		new AiToolSpec("check_mod_updates", "List available mod updates for a profile from Modrinth/CurseForge metadata (read-only).", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"],\"additionalProperties\":false}", true),
+		new AiToolSpec("update_mods", "Apply all available mod updates for a profile. Creates a verified mod snapshot first and reports its id for rollback.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"],\"additionalProperties\":false}", false),
+		new AiToolSpec("install_mod", "Install one mod by slug from Modrinth (or CurseForge) with dependencies into a profile. Creates a verified mod snapshot first.", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"slug\":{\"type\":\"string\"},\"source\":{\"type\":\"string\"}},\"required\":[\"id\",\"slug\"],\"additionalProperties\":false}", false),
+		new AiToolSpec("export_pack", "Export a profile as a pack zip into the launcher packs folder (never modifies the profile).", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"include_worlds\":{\"type\":\"boolean\"}},\"required\":[\"id\"],\"additionalProperties\":false}", false),
+		new AiToolSpec("restore_mods", "Roll the profile mods folder back to a verified mod snapshot: snapshot files are copied back and mods added after it are disabled (nothing deleted).", "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"},\"snapshot\":{\"type\":\"string\"}},\"required\":[\"id\",\"snapshot\"],\"additionalProperties\":false}", false)
 	};
 
-	public static string Handle(LauncherPaths paths, AiToolCall call, CancellationToken ct = default)
+	public static Task<string> HandleAsync(LauncherPaths paths, AiToolCall call, CancellationToken ct = default) => HandleCore(paths, call, ct);
+
+	private static async Task<string> HandleCore(LauncherPaths paths, AiToolCall call, CancellationToken ct)
 	{
 		using JsonDocument args = JsonDocument.Parse(string.IsNullOrEmpty(call.ArgumentsJson) ? "{}" : call.ArgumentsJson);
 		JsonElement root = args.RootElement;
@@ -159,8 +166,13 @@ public static class AiToolbox
 		case "analyze_crash":
 		case "mod_conflicts":
 		case "read_log":
+		case "check_mod_updates":
 		case "toggle_mod":
 		case "set_memory_mb":
+		case "update_mods":
+		case "install_mod":
+		case "export_pack":
+		case "restore_mods":
 		{
 			string id = Str("id");
 			InstanceConfig? instance = store.Find(id);
@@ -206,6 +218,56 @@ public static class AiToolbox
 				int linesWanted = root.TryGetProperty("lines", out JsonElement lv) && lv.TryGetInt32(out int parsed) ? Math.Clamp(parsed, 10, 200) : 60;
 				string tail = ReadLogTail(instance, linesWanted);
 				return tail.Length == 0 ? "no latest.log found" : SecretPattern.Replace(tail, "$1=REDACTED");
+			}
+			case "check_mod_updates":
+			{
+				Dictionary<string, ModUpdateCandidate> updates = await ModUpdater.CheckUpdatesAsync(modsDir, ModStore.McVersionOf(instance.VersionId), ModStore.LoaderOf(instance.VersionId), null, ct).ConfigureAwait(false);
+				if (updates.Count == 0) return "mods are up to date";
+				return string.Join("\n", updates.Values.Select(u => u.CurrentFileName + " -> " + u.NewFileName + " (" + u.LatestVersionNumber + ")"));
+			}
+			case "update_mods":
+			{
+				string snapshot = await ModSnapshot.CreateAsync(modsDir, ct).ConfigureAwait(false);
+				Dictionary<string, ModUpdateCandidate> updates = await ModUpdater.CheckUpdatesAsync(modsDir, ModStore.McVersionOf(instance.VersionId), ModStore.LoaderOf(instance.VersionId), null, ct).ConfigureAwait(false);
+				if (updates.Count == 0) return "mods are up to date; snapshot " + snapshot;
+				List<string> applied = new List<string>();
+				foreach (ModUpdateCandidate candidate in updates.Values)
+				{
+					await ModUpdater.ApplyUpdateAsync(modsDir, candidate, ct).ConfigureAwait(false);
+					applied.Add(candidate.CurrentFileName + " -> " + candidate.NewFileName);
+				}
+				return "snapshot " + snapshot + "\napplied:\n" + string.Join("\n", applied);
+			}
+			case "install_mod":
+			{
+				string slug = Str("slug");
+				if (slug.Length == 0) return "slug is required";
+				StoreSource source = string.Equals(Str("source"), "curseforge", StringComparison.OrdinalIgnoreCase) ? StoreSource.CurseForge : StoreSource.Modrinth;
+				LauncherSettings settings = LauncherSettings.Load(paths);
+				using ModStore modStore = new ModStore(settings.CurseForgeKey);
+				List<StoreMod> found = await modStore.SearchAsync(source, slug, ModStore.McVersionOf(instance.VersionId), ModStore.LoaderOf(instance.VersionId), 10, ct).ConfigureAwait(false);
+				StoreMod? mod = found.FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.OrdinalIgnoreCase)) ?? found.FirstOrDefault();
+				if (mod == null) return "no mod named " + slug + " for " + instance.VersionId;
+				string snapshot = await ModSnapshot.CreateAsync(modsDir, ct).ConfigureAwait(false);
+				ModInstallResult install = await modStore.InstallAsync(mod, instance, true, null, ct).ConfigureAwait(false);
+				string text = "snapshot " + snapshot + "\n" + install.Summary + "\ninstalled: " + string.Join(", ", install.Installed);
+				return install.Failed.Count == 0 ? text : text + "\nfailed: " + string.Join(", ", install.Failed);
+			}
+			case "export_pack":
+			{
+				bool includeWorlds = root.TryGetProperty("include_worlds", out JsonElement wv) && wv.ValueKind == JsonValueKind.True;
+				string packsDir = Path.Combine(paths.Root, "packs");
+				Directory.CreateDirectory(packsDir);
+				string output = Path.Combine(packsDir, instance.Id + "-" + DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss") + ".zip");
+				(string exportPath, int files, long bytes) = PackExporter.Export(instance, output, includeWorlds, null);
+				return "exported " + exportPath + " (" + files + " files, " + bytes + " bytes)";
+			}
+			case "restore_mods":
+			{
+				string snap = Str("snapshot");
+				if (snap.Length != 32 || !snap.All(ch => Uri.IsHexDigit(ch))) return "snapshot id must be the 32-char id shown by update_mods/install_mod";
+				if (!Directory.Exists(Path.Combine(modsDir, ".nova-mod-snapshots", snap))) return "unknown snapshot " + snap + " for this profile";
+				return await ModSnapshot.RestoreAsync(modsDir, snap, ct).ConfigureAwait(false);
 			}
 			case "toggle_mod":
 			{

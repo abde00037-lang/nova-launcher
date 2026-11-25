@@ -46,7 +46,7 @@ public partial class AiView : UserControl
 
 	private async Task<bool> OnApprovalGate(AiToolSpec spec, AiToolCall call, System.Threading.CancellationToken ct)
 	{
-		return await Dispatcher.InvokeAsync(() => MessageBox.Show(Window.GetWindow(this), "The AI agent wants to run a changing action:\n\n" + spec.Name + "\n" + call.ArgumentsJson + "\n\nAllow it? A denied action does nothing.", "AI agent approval", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes);
+		return await Dispatcher.InvokeAsync(() => new AiApprovalWindow(spec, call) { Owner = Window.GetWindow(this) }.ShowDialog() == true);
 	}
 
 	private void OnRequestManageProviders(object? sender, System.EventArgs e)

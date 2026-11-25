@@ -251,7 +251,7 @@ internal static class Program
 			string task = string.Join(" ", rest.Skip(1));
 			using AiClient client = new AiClient(120);
 			AiAgent agent = new AiAgent(client);
-			AiAgentResult result = agent.RunAsync(provider, key, "You are the Nova Workbench assistant. Use the launcher tools when needed; write tools require explicit approval. Be concise.", task, (call, ct) => Task.Run(() => AiToolbox.Handle(_paths, call, ct), ct), (spec, call, ct) =>
+			AiAgentResult result = agent.RunAsync(provider, key, "You are the Nova Workbench assistant. Use the launcher tools when needed; write tools require explicit approval. Be concise.", task, (call, ct) => AiToolbox.HandleAsync(_paths, call, ct), (spec, call, ct) =>
 			{
 				Console.WriteLine("APPROVE WRITE TOOL " + spec.Name + " " + call.ArgumentsJson + " ? [y/N]");
 				string? answer = Console.ReadLine();

@@ -67,4 +67,39 @@ public static class ModSnapshot
             throw;
         }
     }
+
+    /// <summary>Copies verified snapshot files back over the mods folder and disables mod files added after the snapshot. Nothing is deleted.</summary>
+    public static async Task<string> RestoreAsync(string modsDirectory, string snapshotId, CancellationToken ct = default)
+    {
+        if (snapshotId.Length != 32 || !Guid.TryParseExact(snapshotId, "N", out _)) throw new ArgumentException("Snapshot id must be the 32-char folder name under .nova-mod-snapshots.");
+        string root = SafePath.ResolveWithin(modsDirectory, ".nova-mod-snapshots");
+        string target = SafePath.ResolveWithin(root, snapshotId);
+        string manifestPath = SafePath.ResolveWithin(target, "manifest.json");
+        if (!File.Exists(manifestPath)) throw new FileNotFoundException("Unknown mod snapshot " + snapshotId + ".", manifestPath);
+        Manifest manifest = JsonSerializer.Deserialize<Manifest>(await File.ReadAllTextAsync(manifestPath, ct).ConfigureAwait(false))
+            ?? throw new InvalidDataException("Invalid snapshot manifest.");
+        using FileStream operationLock = ModUpdater.AcquireModLock(modsDirectory);
+        int restored = 0;
+        foreach (Entry entry in manifest.Files)
+        {
+            ct.ThrowIfCancellationRequested();
+            string source = SafePath.ResolveWithin(SafePath.ResolveWithin(target, "files"), entry.FileName);
+            string copied = await Hash(source, ct).ConfigureAwait(false);
+            if (!string.Equals(copied, entry.Sha256, StringComparison.Ordinal)) throw new IOException("Snapshot file failed verification: " + entry.FileName);
+            string destination = SafePath.ResolveWithin(modsDirectory, entry.FileName);
+            File.Copy(source, destination, true);
+            restored++;
+        }
+        HashSet<string> bases = new HashSet<string>(manifest.Files.Select(f => ModManager.DisplayName(f.FileName)), StringComparer.OrdinalIgnoreCase);
+        int disabled = 0;
+        foreach (string current in Directory.EnumerateFiles(modsDirectory))
+        {
+            string name = Path.GetFileName(current);
+            if (!ModManager.IsModFile(name) || name.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)) continue;
+            if (bases.Contains(ModManager.DisplayName(name))) continue;
+            File.Move(current, SafePath.ResolveWithin(modsDirectory, name + ".disabled"));
+            disabled++;
+        }
+        return "restored " + restored + " files and disabled " + disabled + " newer mod files from snapshot " + snapshotId;
+    }
 }

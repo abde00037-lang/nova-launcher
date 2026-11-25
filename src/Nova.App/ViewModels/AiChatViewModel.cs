@@ -116,7 +116,7 @@ public sealed class AiChatViewModel : INotifyPropertyChanged
 			using AiClient client = new AiClient(120);
 			AiAgent agent = new AiAgent(client);
 			AiApprovalGate gate = ApprovalGate ?? ((spec, call, ct) => Task.FromResult(false));
-			AiAgentResult result = await agent.RunAsync(provider, key, SystemPrompt, text, (call, ct) => Task.Run(() => AiToolbox.Handle(_paths, call, ct), ct), gate).ConfigureAwait(true);
+			AiAgentResult result = await agent.RunAsync(provider, key, SystemPrompt, text, (call, ct) => AiToolbox.HandleAsync(_paths, call, ct), gate).ConfigureAwait(true);
 			foreach (string line in result.Trace) Messages.Add(new AiChatMessage("system", "TOOL " + line));
 			Messages.Add(new AiChatMessage("assistant", result.Text, provider.Models.FirstOrDefault()));
 		}
