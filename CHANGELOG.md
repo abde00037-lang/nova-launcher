@@ -2,6 +2,15 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v3.0.0] - 2026-11-26
+- Big maintenance release on the v2.1.11 feature set: update discovery now reads GitHub's public releases.atom feed with the /releases/latest redirect as an independent fallback, removing the rate-limited api.github.com call (403 behind shared IPs) that returned with the rollback.
+- nova-cli now resolves its default data root to the launcher folder when run from bin\ (previously it forked data into bin\data).
+- JavaLocator no longer scans development-machine paths and refuses to run older Minecraft on a newer JRE: missing Java 8 now provisions or fails with a clear message instead of launching Forge 1.12.2 on Java 21.
+- Mod update checks no longer send a fake forge loader for vanilla profiles; the loader filter is omitted instead.
+- The web installer discovers releases via the redirect, builds asset URLs from the release contract, verifies the downloaded package against SHA256SUMS.txt, and no longer parses release JSON with regex.
+- Release packages no longer ship .pdb debug symbols; corrupt settings.json and unreadable account/instance files are reported to logs/nova-core.log; settings save failures are logged too.
+- CI and release workflows pin third-party GitHub Actions by commit SHA.
+- The sidebar entry for world backups is labeled "Backups" (it never was the mod-snapshot feature).
 ## [v2.1.17]
 - Roll back to the v2.1.11 feature set: the BYOK AI assistant, agent tools and mod snapshot management introduced in v2.1.12-v2.1.16 are removed from the product.
 - Reclaim update-cache disk space: stale stage/extract/backup folders, old partial downloads and expired packages are pruned before staging and on update checks; the verified download is deleted after a clean stage.

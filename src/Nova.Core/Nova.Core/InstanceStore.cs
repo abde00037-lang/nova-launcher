@@ -51,8 +51,9 @@ public sealed class InstanceStore
 					list.Add(instanceConfig);
 				}
 			}
-			catch
+			catch (Exception instanceEx)
 			{
+				NovaLog.Write(_paths.Root, "WARN", "instance config skipped: " + directories[i] + " - " + instanceEx.Message);
 			}
 		}
 		return list.OrderBy((InstanceConfig instanceConfig2) => instanceConfig2.Name, StringComparer.OrdinalIgnoreCase).ToList();

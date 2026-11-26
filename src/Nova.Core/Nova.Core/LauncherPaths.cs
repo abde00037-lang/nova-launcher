@@ -53,6 +53,14 @@ public sealed class LauncherPaths
 
 	public static LauncherPaths Default()
 	{
+		// CLI and UI share one root: running from a launcher bin folder targets its parent,
+		// so nova-cli never forks data into bin\data anymore.
+		string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		if (string.Equals(Path.GetFileName(baseDir), "bin", StringComparison.OrdinalIgnoreCase))
+		{
+			string? parent = Path.GetDirectoryName(baseDir);
+			if (!string.IsNullOrEmpty(parent)) return new LauncherPaths(parent);
+		}
 		return new LauncherPaths(Path.Combine(AppContext.BaseDirectory, "data"));
 	}
 }

@@ -271,7 +271,7 @@ internal static class Program
 		List<InstanceConfig> list = new InstanceStore(_paths).All();
 		if (list.Count == 0)
 		{
-			Warn("no instances yet - use: nova add --name \"My Pack\" --game D:\\pack --version 1.12.2-forge-14.23.5.2860");
+			Warn("no instances yet - use: nova add --name \"My Pack\" --game D:\\MyPack --version 1.12.2-forge-14.23.5.2860");
 			return 0;
 		}
 		foreach (InstanceConfig item in list)

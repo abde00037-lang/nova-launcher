@@ -27,6 +27,9 @@ foreach ($file in @('Nova.exe', 'nova-cli.exe', 'Nova.Core.dll', 'coreclr.dll', 
     if (-not (Test-Path (Join-Path $bin $file))) { throw "Missing $file" }
 }
 
+# Debug symbols stay out of release packages (smaller download, no source paths leak).
+Get-ChildItem $bin -Filter '*.pdb' -ErrorAction SilentlyContinue | Remove-Item -Force
+
 "@echo off`r`nstart `"`" `"%~dp0bin\Nova.exe`"" | Set-Content -Path "$root/Start Nova.bat" -Encoding ASCII
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $portableZip = Join-Path $OutputDir 'Nova-Portable-Full-win-x64.zip'

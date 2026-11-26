@@ -49,18 +49,20 @@ public sealed class AccountStore
 						    ((!string.IsNullOrEmpty(novaAccount.AccessToken) && string.IsNullOrEmpty(access)) ||
 						     (!string.IsNullOrEmpty(novaAccount.RefreshToken) && string.IsNullOrEmpty(refresh))))
 						{
-							try { Save(novaAccount); } catch { /* Keep the original account file if migration fails. */ }
+							try { Save(novaAccount); } catch (Exception migrationEx) { NovaLog.Write(_paths.Root, "WARN", "token migration failed for " + novaAccount.Id + " - " + migrationEx.Message); /* keep original file */ }
 						}
 						list.Add(novaAccount);
 					}
 				}
-				catch
+				catch (Exception fileEx)
 				{
+					NovaLog.Write(_paths.Root, "WARN", "account file skipped: " + Path.GetFileName(path) + " - " + fileEx.Message);
 				}
 			}
 		}
-		catch
+		catch (Exception folderEx)
 		{
+			NovaLog.Write(_paths.Root, "WARN", "accounts folder unreadable - " + folderEx.Message);
 		}
 		return list.OrderBy((NovaAccount a) => a.Kind).ThenBy((NovaAccount a) => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
 	}

@@ -81,6 +81,7 @@ public sealed class LauncherSettings
                 if (File.Exists(corruptPath) && !File.Exists(corruptBackup)) File.Copy(corruptPath, corruptBackup);
             }
             catch { }
+            NovaLog.Write(paths.Root, "WARN", "settings.json is corrupt - defaults applied, original kept as backup");
             return new LauncherSettings();
         }
     }
@@ -103,7 +104,7 @@ public sealed class LauncherSettings
             _curseForgeKeyChanged = false;
             return true;
         }
-        catch { return false; /* Keep the old settings file if encryption or the atomic save fails. */ }
+        catch (Exception saveEx) { NovaLog.Write(paths.Root, "WARN", "settings save failed - " + saveEx.Message); return false; /* keep the old settings file */ }
         finally { try { if (File.Exists(temp)) File.Delete(temp); } catch { } }
     }
 }

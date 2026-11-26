@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -75,6 +76,7 @@ namespace NovaSetup
         public long FullZipSize;
         public string BinZipUrl;
         public long BinZipSize;
+        public string SumsText = "";
     }
 
     internal static class InstallerEngine
@@ -85,90 +87,154 @@ namespace NovaSetup
         {
             return Task.Run(() =>
             {
-                string api = "https://api.github.com/repos/" + RepoSlug + "/releases/latest";
-                string sysCurl = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "curl.exe");
-                string json = null;
-                if (File.Exists(sysCurl))
+                // Discover the newest tag from the releases/latest redirect instead of the
+                // rate-limited api.github.com JSON endpoint (403 for users behind shared IPs).
+                string redirect = FetchRedirectUrl("https://github.com/" + RepoSlug + "/releases/latest");
+                string tag = "";
+                if (!string.IsNullOrEmpty(redirect))
                 {
-                    ProcessStartInfo psi = new ProcessStartInfo
-                    {
-                        FileName = sysCurl,
-                        Arguments = "-f -s -L --retry 3 -H \"Accept: application/vnd.github+json\" -A \"NovaWorkbench-Setup/2.1\" \"" + api + "\"",
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        StandardOutputEncoding = Encoding.UTF8,
-                        CreateNoWindow = true
-                    };
-                    using (Process p = Process.Start(psi))
-                    {
-                        json = p.StandardOutput.ReadToEnd();
-                        p.WaitForExit(20000);
-                        if (p.ExitCode != 0) json = null;
-                    }
+                    string trimmed = redirect.TrimEnd('/');
+                    int idx = trimmed.LastIndexOf('/');
+                    if (idx >= 0) tag = Uri.UnescapeDataString(trimmed.Substring(idx + 1));
                 }
-                if (string.IsNullOrWhiteSpace(json))
+                if (tag.Length == 0 || tag.Length > 64 || !Regex.IsMatch(tag, "^[A-Za-z0-9.\\-_+]+$"))
                 {
-                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(api);
-                    req.UserAgent = "NovaWorkbench-Setup/2.1";
-                    req.Accept = "application/vnd.github+json";
-                    req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
-                    req.KeepAlive = false;
-                    req.Timeout = 20000;
-                    using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                    using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
-                    {
-                        json = sr.ReadToEnd();
-                    }
+                    throw new InvalidOperationException("Could not resolve the latest Nova release tag on GitHub.");
                 }
 
+                string baseUrl = "https://github.com/" + RepoSlug + "/releases/download/" + Uri.EscapeDataString(tag);
                 ReleaseMetadata meta = new ReleaseMetadata();
-                meta.TagName = MatchJsonString(json, "tag_name") ?? "latest";
-                meta.Title = MatchJsonString(json, "name") ?? ("Nova Workbench " + meta.TagName);
-
-                // Extract assets block items
-                MatchCollection assetMatches = Regex.Matches(
-                    json,
-                    "\\{[^{}]*?\"name\"\\s*:\\s*\"(?<name>[^\"]+\\.zip)\"[^{}]*?\"size\"\\s*:\\s*(?<size>\\d+)[^{}]*?\"browser_download_url\"\\s*:\\s*\"(?<url>[^\"]+)\"",
-                    RegexOptions.Singleline);
-
-                foreach (Match m in assetMatches)
-                {
-                    string name = m.Groups["name"].Value;
-                    string url = m.Groups["url"].Value;
-                    long size = 0;
-                    long.TryParse(m.Groups["size"].Value, out size);
-
-                    if (name.IndexOf("Portable-Full", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        meta.FullZipUrl = url;
-                        meta.FullZipSize = size;
-                    }
-                    else if (name.IndexOf("nova-bin", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        meta.BinZipUrl = url;
-                        meta.BinZipSize = size;
-                    }
-                }
-
-                // Fallback regex if JSON property order differs
-                if (string.IsNullOrEmpty(meta.FullZipUrl))
-                {
-                    Match mFull = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"(https://[^\"]*Nova-Portable-Full[^\"]*\\.zip)\"");
-                    if (mFull.Success) meta.FullZipUrl = mFull.Groups[1].Value;
-                }
-                if (string.IsNullOrEmpty(meta.BinZipUrl))
-                {
-                    Match mBin = Regex.Match(json, "\"browser_download_url\"\\s*:\\s*\"(https://[^\"]*nova-bin[^\"]*\\.zip)\"");
-                    if (mBin.Success) meta.BinZipUrl = mBin.Groups[1].Value;
-                }
-
-                if (string.IsNullOrEmpty(meta.FullZipUrl) && string.IsNullOrEmpty(meta.BinZipUrl))
-                {
-                    throw new InvalidOperationException("No downloadable release .zip found on GitHub (" + RepoSlug + ").");
-                }
-
+                meta.TagName = tag;
+                meta.Title = "Nova Launcher " + tag;
+                meta.FullZipUrl = baseUrl + "/Nova-Portable-Full-win-x64.zip";
+                meta.BinZipUrl = baseUrl + "/nova-bin-win-x64.zip";
+                meta.FullZipSize = HeadContentLength(meta.FullZipUrl);
+                meta.BinZipSize = HeadContentLength(meta.BinZipUrl);
+                try { meta.SumsText = FetchText(baseUrl + "/SHA256SUMS.txt"); }
+                catch { meta.SumsText = ""; }
                 return meta;
             });
+        }
+
+        private static string SysCurlPath()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "curl.exe");
+        }
+
+        private static string FetchRedirectUrl(string url)
+        {
+            string sysCurl = SysCurlPath();
+            if (File.Exists(sysCurl))
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = sysCurl,
+                    Arguments = "-s -o NUL -w \"%{redirect_url}\" --max-time 20 \"" + url + "\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    CreateNoWindow = true
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(25000);
+                    if (p.ExitCode == 0 && !string.IsNullOrWhiteSpace(output)) return output.Trim();
+                }
+            }
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.UserAgent = "NovaWorkbench-Setup/3.0";
+            req.AllowAutoRedirect = false;
+            req.Timeout = 20000;
+            try
+            {
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                {
+                    if ((int)resp.StatusCode == 302 || (int)resp.StatusCode == 301) return resp.Headers["Location"] ?? "";
+                    return "";
+                }
+            }
+            catch (WebException ex)
+            {
+                HttpWebResponse err = ex.Response as HttpWebResponse;
+                if (err != null && ((int)err.StatusCode == 302 || (int)err.StatusCode == 301)) return err.Headers["Location"] ?? "";
+                throw;
+            }
+        }
+
+        private static string FetchText(string url)
+        {
+            string sysCurl = SysCurlPath();
+            if (File.Exists(sysCurl))
+            {
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = sysCurl,
+                    Arguments = "-f -s -L --retry 2 --max-time 30 \"" + url + "\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    CreateNoWindow = true
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    string output = p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(35000);
+                    if (p.ExitCode == 0) return output;
+                }
+            }
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.UserAgent = "NovaWorkbench-Setup/3.0";
+            req.Timeout = 30000;
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+            {
+                return sr.ReadToEnd();
+            }
+        }
+
+        private static long HeadContentLength(string url)
+        {
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                req.UserAgent = "NovaWorkbench-Setup/3.0";
+                req.Method = "HEAD";
+                req.Timeout = 20000;
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                {
+                    return resp.ContentLength;
+                }
+            }
+            catch { return 0L; }
+        }
+
+        private static void VerifyPackageChecksum(string zipFile, ReleaseMetadata rel, string assetName)
+        {
+            if (string.IsNullOrWhiteSpace(rel.SumsText)) return; // checksums missing upstream: behave as before
+            string expected = null;
+            string[] lines = rel.SumsText.Replace("\r", "").Split('\n');
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (line.Length < 67) continue;
+                bool hex = true;
+                for (int i = 0; i < 64; i++) { if (!Uri.IsHexDigit(line[i])) { hex = false; break; } }
+                if (!hex || !char.IsWhiteSpace(line[64])) continue;
+                string name = line.Substring(65).TrimStart();
+                if (name.StartsWith("*")) name = name.Substring(1);
+                if (string.Equals(name, assetName, StringComparison.Ordinal)) { expected = line.Substring(0, 64); break; }
+            }
+            if (string.IsNullOrEmpty(expected)) return;
+            using (System.Security.Cryptography.SHA256CryptoServiceProvider sha = new System.Security.Cryptography.SHA256CryptoServiceProvider())
+            using (FileStream fs = new FileStream(zipFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                string actual = BitConverter.ToString(sha.ComputeHash(fs)).Replace("-", "").ToLowerInvariant();
+                if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException("Downloaded package failed its SHA-256 check; installation aborted.");
+                }
+            }
         }
 
         public static async Task<string> InstallLatestAsync(
@@ -193,6 +259,7 @@ namespace NovaSetup
             bool useFastBinPack = forceLite || (hasSelfContainedRuntime && !string.IsNullOrEmpty(rel.BinZipUrl) && File.Exists(Path.Combine(targetBin, "Nova.exe")));
 
             string downloadUrl = useFastBinPack ? rel.BinZipUrl : (rel.FullZipUrl ?? rel.BinZipUrl);
+            string downloadName = (useFastBinPack || string.IsNullOrEmpty(rel.FullZipUrl)) ? "nova-bin-win-x64.zip" : "Nova-Portable-Full-win-x64.zip";
             long expectedBytes = useFastBinPack ? rel.BinZipSize : (rel.FullZipSize > 0 ? rel.FullZipSize : rel.BinZipSize);
 
             string tempWork = Path.Combine(Path.GetTempPath(), "NovaWorkbenchSetup_" + Guid.NewGuid().ToString("N").Substring(0, 8));
@@ -238,6 +305,8 @@ namespace NovaSetup
                         }
                     }
 
+                    progress(84, "Verifying package SHA-256…");
+                    VerifyPackageChecksum(zipFile, rel, downloadName);
                     progress(85, "Extracting Nova Workbench files…");
                     using (ZipArchive zip = ZipFile.OpenRead(zipFile))
                     {

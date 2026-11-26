@@ -222,7 +222,7 @@
               <RadioButton x:Name="NavBackups" automation:AutomationProperties.AutomationId="NavBackups" automation:AutomationProperties.Name="Backups" Style="{StaticResource NavButton}" Tag="Backups" Click="Nav_Click">
                 <StackPanel Orientation="Horizontal">
                   <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets" FontSize="13" Width="24" VerticalAlignment="Center" />
-                  <TextBlock Text="Snapshots" VerticalAlignment="Center" />
+                  <TextBlock Text="Backups" VerticalAlignment="Center" />
                 </StackPanel>
               </RadioButton>
 

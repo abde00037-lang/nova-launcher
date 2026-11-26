@@ -37,7 +37,14 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.17
+## Latest update — v3.0.0
+
+- Update discovery reads GitHub's public releases.atom feed (with the /releases/latest redirect fallback) instead of the rate-limited api.github.com endpoint.
+- nova-cli shares the launcher's data root when run from bin\ — no more forked bin\data.
+- Java discovery drops development-machine paths; older Minecraft no longer runs on a newer JRE (missing Java 8 provisions or fails clearly).
+- Mod update checks omit the loader filter for vanilla profiles; the web installer verifies downloads against SHA256SUMS.txt; release packages ship without .pdb symbols; corrupt data files are reported to logs/nova-core.log.
+
+## Previous update — v2.1.17
 
 - Rolled the product back to the v2.1.11 feature set: the BYOK AI assistant, supervised agent and mod-snapshot management from v2.1.12-v2.1.16 are removed.
 - Update-cache housekeeping: stale staging folders, old partial downloads and expired update packages are pruned automatically, and the verified download is deleted after a clean stage.

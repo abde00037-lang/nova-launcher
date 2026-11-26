@@ -45,7 +45,7 @@ public static class JavaLocator
 				AddIfExists(hashSet, Path.Combine(environmentVariable, "bin", "java.exe"));
 			}
 		}
-		List<string> list = new List<string> { Path.Combine(AppContext.BaseDirectory, "..", "java"), "D:\\nova\\java", "C:\\Program Files\\Java", "C:\\Program Files\\Eclipse Adoptium", "C:\\Program Files\\Microsoft", "C:\\Program Files\\Zulu", "C:\\Program Files (x86)\\Java", "D:\\jdk8", "D:\\gradle_home\\jdks", "D:\\gradle-home\\jdks", "D:\\Java" };
+		List<string> list = new List<string> { Path.Combine(AppContext.BaseDirectory, "..", "java"), "C:\\Program Files\\Java", "C:\\Program Files\\Eclipse Adoptium", "C:\\Program Files\\Microsoft", "C:\\Program Files\\Zulu", "C:\\Program Files (x86)\\Java" };
 		lock (ExtraRoots)
 		{
 			list.AddRange(ExtraRoots);
@@ -97,7 +97,8 @@ public static class JavaLocator
 		{
 			return javaInstall2;
 		}
-		return source.FirstOrDefault();
+		// Older runtimes (Java 8 for Forge 1.12.2 and friends) must never silently run on a newer JRE.
+		return null;
 	}
 
 	public static JavaInstall? Probe(string javaPath, string source = "scan")

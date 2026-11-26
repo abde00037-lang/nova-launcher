@@ -52,7 +52,7 @@ public static class ModUpdater
 		{
 			return results;
 		}
-		string effLoader = (string.IsNullOrWhiteSpace(loader) || loader == "vanilla") ? "forge" : loader.ToLowerInvariant();
+		string requestedLoader = (string.IsNullOrWhiteSpace(loader) || loader == "vanilla") ? string.Empty : loader.ToLowerInvariant();
 		List<string> files = Directory.EnumerateFiles(modsDirectory)
 			.Where((string f) => ModManager.IsModFile(Path.GetFileName(f)))
 			.ToList();
@@ -82,13 +82,14 @@ public static class ModUpdater
 		for (int offset = 0; offset < allHashes.Count; offset += 150)
 		{
 			List<string> chunk = allHashes.Skip(offset).Take(150).ToList();
-			string body = JsonSerializer.Serialize(new
+			Dictionary<string, object> payload = new Dictionary<string, object>
 			{
-				hashes = chunk,
-				algorithm = "sha1",
-				loaders = new string[1] { effLoader },
-				game_versions = new string[1] { mcVersion }
-			});
+				["hashes"] = chunk,
+				["algorithm"] = "sha1",
+				["game_versions"] = new string[1] { mcVersion }
+			};
+			if (!string.IsNullOrEmpty(requestedLoader)) payload["loaders"] = new string[1] { requestedLoader };
+			string body = JsonSerializer.Serialize(payload);
 			using HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Post, "https://api.modrinth.com/v2/version_files/update")
 			{
 				Content = new StringContent(body, Encoding.UTF8, "application/json")
@@ -155,7 +156,7 @@ public static class ModUpdater
 		}
 		log?.Report(results.Count == 0
 			? "all Modrinth-tracked mods are up to date"
-			: $"{results.Count} mod update(s) available for {mcVersion} ({effLoader})");
+			: $"{results.Count} mod update(s) available for {mcVersion} {(string.IsNullOrEmpty(requestedLoader) ? "vanilla" : requestedLoader)}");
 		return results;
 	}
 
