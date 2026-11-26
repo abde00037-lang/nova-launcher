@@ -102,10 +102,16 @@ namespace NovaOfflineSetup
                                 if (rel.StartsWith("Nova/", StringComparison.OrdinalIgnoreCase))
                                 {
                                     rel = rel.Substring(5);
-                                    if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
+                                    if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) &&
+                                        !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase) &&
+                                        !string.Equals(rel, "THIRD-PARTY-NOTICES.md", StringComparison.OrdinalIgnoreCase) &&
+                                        !string.Equals(rel, "LICENSE", StringComparison.OrdinalIgnoreCase))
                                         throw new InvalidDataException("Unexpected file in portable payload: " + raw);
                                 }
-                                else if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
+                                else if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) &&
+                                         !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase) &&
+                                         !string.Equals(rel, "THIRD-PARTY-NOTICES.md", StringComparison.OrdinalIgnoreCase) &&
+                                         !string.Equals(rel, "LICENSE", StringComparison.OrdinalIgnoreCase))
                                     rel = "bin/" + rel;
                                 return rel;
                             });
