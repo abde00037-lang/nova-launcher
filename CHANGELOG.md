@@ -3,7 +3,7 @@
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
 ## [v2.1.11]
-- Restore the pre-AI launcher edition. The full and web installers remove only the obsolete `<Nova root>\ai` folder (provider configuration and protected API keys); Minecraft worlds, accounts, mods, and other launcher data remain untouched. This removal is permanent.
+- Restore the pre-AI launcher edition. The full and web installers remove only the obsolete `<Nova root>\\ai` folder (provider configuration and protected API keys); Minecraft worlds, accounts, mods, and other launcher data remain untouched. This removal is permanent.
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
 - Keep the mod-page header and filter controls from overlapping at narrower widths.
 - Add WPF layout regressions for all main pages, nested scrolling, resizing, and mod-control overlap.

@@ -40,7 +40,7 @@ The portable package keeps the application and its data under a launcher directo
 ## Latest update — v2.1.11
 
 - Restore the pre-AI launcher edition; AI Chat, provider setup, the agent, and AI CLI commands are not included.
-- The full and web installers permanently remove only the obsolete `<Nova root>\ai` folder containing AI provider settings and protected keys. Worlds, accounts, mods, and other launcher data are preserved.
+- The full and web installers permanently remove only the obsolete `<Nova root>\\ai` folder containing AI provider settings and protected keys. Worlds, accounts, mods, and other launcher data are preserved.
 - Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
 - The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
 
