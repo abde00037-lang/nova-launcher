@@ -264,5 +264,5 @@ You can copy the launcher and world data, but paths in instance settings may nee
 
 ## License
 
-Released under the [MIT License](LICENSE).  
+Released under the [MIT License](LICENSE).
 *Nova Launcher is an independent open-source project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
