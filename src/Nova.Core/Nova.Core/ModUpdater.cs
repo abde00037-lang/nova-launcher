@@ -37,7 +37,7 @@ public static class ModUpdater
 
 	static ModUpdater()
 	{
-		Http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/0.2 (minecraft modpack launcher)");
+		Http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaLauncher/" + LauncherUpdater.CurrentVersion + " (minecraft modpack launcher)");
 	}
 
 	public static async Task<Dictionary<string, ModUpdateCandidate>> CheckUpdatesAsync(

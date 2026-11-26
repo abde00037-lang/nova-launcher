@@ -2,8 +2,15 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v2.1.17]
+- Roll back to the v2.1.11 feature set: the BYOK AI assistant, agent tools and mod snapshot management introduced in v2.1.12-v2.1.16 are removed from the product.
+- Reclaim update-cache disk space: stale stage/extract/backup folders, old partial downloads and expired packages are pruned before staging and on update checks; the verified download is deleted after a clean stage.
+- Java runtimes downloaded from Adoptium are verified against the SHA-256 published in the same API response before extraction.
+- Corrupt settings.json files are preserved as settings.json.corrupt-<timestamp> before defaults are applied.
+- Launcher and User-Agent version strings report the real application version instead of hardcoded 0.1/0.2.
+- Java probes kill and reap hung runtimes instead of leaving orphaned processes behind.
+
 ## [v2.1.11]
-- Restore the pre-AI launcher edition. The full and web installers remove only the obsolete `<Nova root>\\ai` folder (provider configuration and protected API keys); Minecraft worlds, accounts, mods, and other launcher data remain untouched. This removal is permanent.
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
 - Keep the mod-page header and filter controls from overlapping at narrower widths.
 - Add WPF layout regressions for all main pages, nested scrolling, resizing, and mod-control overlap.

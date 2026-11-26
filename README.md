@@ -37,10 +37,14 @@ The portable package keeps the application and its data under a launcher directo
 
 ---
 
-## Latest update — v2.1.11
+## Latest update — v2.1.17
 
-- Restore the pre-AI launcher edition; AI Chat, provider setup, the agent, and AI CLI commands are not included.
-- The full and web installers permanently remove only the obsolete `<Nova root>\\ai` folder containing AI provider settings and protected keys. Worlds, accounts, mods, and other launcher data are preserved.
+- Rolled the product back to the v2.1.11 feature set: the BYOK AI assistant, supervised agent and mod-snapshot management from v2.1.12-v2.1.16 are removed.
+- Update-cache housekeeping: stale staging folders, old partial downloads and expired update packages are pruned automatically, and the verified download is deleted after a clean stage.
+- Java runtimes fetched from Adoptium are SHA-256-verified before extraction; corrupt settings.json files are preserved as settings.json.corrupt-<timestamp>; hung Java probes are killed and reaped instead of leaking processes.
+
+## Previous update — v2.1.11
+
 - Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
 - The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
 
@@ -264,5 +268,5 @@ You can copy the launcher and world data, but paths in instance settings may nee
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).  
 *Nova Launcher is an independent open-source project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*

@@ -261,11 +261,6 @@ namespace NovaSetup
                 });
 
                 string novaExe = Path.Combine(targetBin, "Nova.exe");
-                if (!File.Exists(novaExe)) throw new FileNotFoundException("Installation completed, but Nova.exe was not found at " + novaExe);
-
-                // v2.1.11 is the final pre-AI edition. Remove only Nova's deprecated AI settings and protected keys.
-                SafeInstallerZip.RemoveDeprecatedAiData(targetRoot);
-
                 if (createDesktopShortcut && File.Exists(novaExe))
                 {
                     progress(97, "Creating shortcuts…");

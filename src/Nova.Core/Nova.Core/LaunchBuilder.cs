@@ -48,7 +48,7 @@ public static class LaunchBuilder
 			["${version_type}"] = "release",
 			["${natives_directory}"] = fullNatives,
 			["${launcher_name}"] = "Nova",
-			["${launcher_version}"] = "0.2",
+			["${launcher_version}"] = LauncherUpdater.CurrentVersion,
 			["${classpath}"] = string.Join(Path.PathSeparator, list),
 			["${classpath_separator}"] = Path.PathSeparator.ToString(),
 			["${library_directory}"] = text,
@@ -76,7 +76,7 @@ public static class LaunchBuilder
 			launchPlan.Arguments.Add("-Dfml.ignoreInvalidMinecraftCertificates=true");
 			launchPlan.Arguments.Add("-Dfml.ignorePatchDiscrepancies=true");
 			launchPlan.Arguments.Add("-Dminecraft.launcher.brand=Nova");
-			launchPlan.Arguments.Add("-Dminecraft.launcher.version=0.1");
+			launchPlan.Arguments.Add("-Dminecraft.launcher.version=" + LauncherUpdater.CurrentVersion);
 		}
 		foreach (string jvmArg in instance.JvmArgs)
 		{

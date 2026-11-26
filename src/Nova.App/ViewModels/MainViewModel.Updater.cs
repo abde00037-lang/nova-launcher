@@ -12,6 +12,7 @@ public sealed partial class MainViewModel
 {
 	public async Task CheckLauncherUpdateAsync(bool manual)
 	{
+		try { LauncherUpdater.CleanupStaleUpdateCache(Path.Combine(Paths.Cache, "launcher-update")); } catch { }
 		if (IsLauncherUpdateBusy)
 		{
 			return;

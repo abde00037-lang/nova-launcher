@@ -174,6 +174,7 @@ public static class LauncherUpdater
 		SafePath.RejectLinks(paths.Root, workRoot);
 		Directory.CreateDirectory(workRoot);
 		using FileStream updateLock = await AcquireUpdateLockAsync(workRoot, ct).ConfigureAwait(false);
+		CleanupStaleUpdateCache(workRoot);
 		string partial = Path.Combine(workRoot, "download-" + expectedHash.ToLowerInvariant() + ".part");
 		SafePath.RejectLinks(workRoot, partial);
 		string unique = Guid.NewGuid().ToString("N");
@@ -212,6 +213,7 @@ public static class LauncherUpdater
 					throw new InvalidDataException("Update has an incompatible runtime configuration: " + config);
 			}
 			Directory.Move(sourceBin, stagedDir);
+			try { File.Delete(zipPath); } catch { /* The verified download is no longer needed once staged. */ }
 			if (Directory.Exists(extractDir)) Directory.Delete(extractDir, true);
 			log?.Report($"staged v{update.LatestVersion} cleanly ({Directory.GetFiles(stagedDir).Length} binary files)");
 			return stagedDir;
@@ -222,6 +224,39 @@ public static class LauncherUpdater
 			if (Directory.Exists(stagedDir)) Directory.Delete(stagedDir, true);
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// Reclaims disk space left behind by earlier update attempts: stale stage/extract/backup
+	/// directories, old partial downloads and expired packages. Recent files are kept so that
+	/// interrupted-update resume and parallel staging keep working (see regression tests).
+	/// </summary>
+	public static void CleanupStaleUpdateCache(string workRoot)
+	{
+		try
+		{
+			if (string.IsNullOrWhiteSpace(workRoot) || !Directory.Exists(workRoot)) return;
+			TimeSpan directoryAge = TimeSpan.FromMinutes(60);
+			TimeSpan fileAge = TimeSpan.FromHours(24);
+			DateTimeOffset cutoff = DateTimeOffset.UtcNow;
+			foreach (string dir in Directory.GetDirectories(workRoot))
+			{
+				string name = Path.GetFileName(dir);
+				bool stale = name == "staged" || name.StartsWith("stage-", StringComparison.Ordinal)
+					|| name.StartsWith("extract-", StringComparison.Ordinal) || name.StartsWith("backup-", StringComparison.Ordinal);
+				if (!stale) continue;
+				try { if (Directory.GetLastWriteTimeUtc(dir) < cutoff.Subtract(directoryAge)) Directory.Delete(dir, true); } catch { }
+			}
+			foreach (string file in Directory.GetFiles(workRoot))
+			{
+				string name = Path.GetFileName(file);
+				bool stale = (name.StartsWith("download-", StringComparison.Ordinal) && name.EndsWith(".part", StringComparison.Ordinal))
+					|| name.StartsWith("apply-", StringComparison.Ordinal) || name.StartsWith("nova-update-", StringComparison.Ordinal);
+				if (!stale) continue;
+				try { if (File.GetLastWriteTimeUtc(file) < cutoff.Subtract(fileAge)) File.Delete(file); } catch { }
+			}
+		}
+		catch { }
 	}
 
 	private static async Task<string> DownloadChecksumsAsync(HttpClient client, string url, CancellationToken ct)

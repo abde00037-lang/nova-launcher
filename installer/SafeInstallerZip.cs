@@ -94,25 +94,6 @@ internal static class SafeInstallerZip
             finally { if (File.Exists(temp)) File.Delete(temp); }
         }
     }
-    internal static void RemoveDeprecatedAiData(string targetRoot)
-    {
-        string aiDirectory = PathWithin(targetRoot, "ai");
-        if (File.Exists(aiDirectory) && !Directory.Exists(aiDirectory))
-        {
-            File.Delete(aiDirectory);
-            return;
-        }
-        if (!Directory.Exists(aiDirectory)) return;
-
-        // Delete only the two known AI data files. Do not recursively traverse arbitrary user content.
-        foreach (string name in new[] { "providers.json", "keys.dat" })
-        {
-            string file = PathWithin(targetRoot, "ai/" + name);
-            if (File.Exists(file)) File.Delete(file);
-        }
-        if (Directory.GetFileSystemEntries(aiDirectory).Length == 0) Directory.Delete(aiDirectory, false);
-    }
-
     internal static void CopyFiles(string source, string target)
     {
         foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))

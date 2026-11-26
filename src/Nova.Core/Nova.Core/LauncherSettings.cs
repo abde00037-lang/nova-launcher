@@ -71,7 +71,18 @@ public sealed class LauncherSettings
             }
             return settings;
         }
-        catch { return new LauncherSettings(); }
+        catch
+        {
+            // Corrupt settings must not disappear silently: preserve the original file for recovery.
+            try
+            {
+                string corruptPath = FileFor(paths);
+                string corruptBackup = corruptPath + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+                if (File.Exists(corruptPath) && !File.Exists(corruptBackup)) File.Copy(corruptPath, corruptBackup);
+            }
+            catch { }
+            return new LauncherSettings();
+        }
     }
 
     public bool Save(LauncherPaths paths)

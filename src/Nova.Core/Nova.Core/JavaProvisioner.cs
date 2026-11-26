@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,6 +56,7 @@ public static class JavaProvisioner
 		string requestUri = $"{"https://api.adoptium.net/v3/assets/latest"}/{major}/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse";
 		string link = null;
 		long size = 0L;
+		string? expectedChecksum = null;
 		try
 		{
 			using JsonDocument jsonDocument = JsonDocument.Parse(await Http.GetStringAsync(requestUri, ct).ConfigureAwait(continueOnCapturedContext: false));
@@ -64,6 +66,10 @@ public static class JavaProvisioner
 				if (value2.TryGetProperty("size", out var value4) && value4.ValueKind == JsonValueKind.Number)
 				{
 					size = value4.GetInt64();
+				}
+				if (value2.TryGetProperty("checksum", out var value5) && value5.ValueKind == JsonValueKind.String)
+				{
+					expectedChecksum = value5.GetString();
 				}
 			}
 		}
@@ -84,6 +90,18 @@ public static class JavaProvisioner
 			if (await downloader.EnsureAsync(archive, link, null, ct).ConfigureAwait(continueOnCapturedContext: false) == FetchResult.Failed)
 			{
 				throw new InvalidOperationException("java download failed");
+			}
+		}
+		if (!string.IsNullOrWhiteSpace(expectedChecksum))
+		{
+			log?.Report("java: verifying SHA-256…");
+			using (FileStream shaStream = File.OpenRead(archive))
+			{
+				string actual = Convert.ToHexString(SHA256.HashData(shaStream));
+				if (!string.Equals(actual, expectedChecksum, StringComparison.OrdinalIgnoreCase))
+				{
+					throw new InvalidDataException("Downloaded Java runtime failed its SHA-256 check; nothing was installed.");
+				}
 			}
 		}
 		string target = DirectoryFor(paths, major);

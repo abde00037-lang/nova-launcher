@@ -122,6 +122,7 @@ public static class JavaLocator
 				try
 				{
 					process.Kill(entireProcessTree: true);
+					process.WaitForExit(3000);
 				}
 				catch
 				{
