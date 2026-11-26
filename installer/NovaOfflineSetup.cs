@@ -125,6 +125,9 @@ namespace NovaOfflineSetup
                     throw new FileNotFoundException("Extraction completed, but Nova.exe was not found at " + novaExe);
                 }
 
+                // v2.1.11 is the final pre-AI edition. Remove only Nova's deprecated AI settings and protected keys.
+                SafeInstallerZip.RemoveDeprecatedAiData(targetRoot);
+
                 if (createShortcuts)
                 {
                     progress(96, "Creating Desktop & Start Menu shortcuts…");

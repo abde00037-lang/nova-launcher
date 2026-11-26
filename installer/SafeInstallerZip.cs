@@ -94,6 +94,13 @@ internal static class SafeInstallerZip
             finally { if (File.Exists(temp)) File.Delete(temp); }
         }
     }
+    internal static void RemoveDeprecatedAiData(string targetRoot)
+    {
+        string aiDirectory = PathWithin(targetRoot, "ai");
+        if (Directory.Exists(aiDirectory)) Directory.Delete(aiDirectory, true);
+        else if (File.Exists(aiDirectory)) File.Delete(aiDirectory);
+    }
+
     internal static void CopyFiles(string source, string target)
     {
         foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
