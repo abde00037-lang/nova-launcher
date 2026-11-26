@@ -15,7 +15,7 @@
 [![CI Status](https://img.shields.io/github/actions/workflow/status/abde00037-lang/nova-launcher/ci.yml?style=for-the-badge&label=CI%20BUILD&logo=githubactions&logoColor=white)](https://github.com/abde00037-lang/nova-launcher/actions)
 [![Platform](https://img.shields.io/badge/WINDOWS-10%20%2F%2011%20(64--BIT)-1f2937?style=for-the-badge&logo=windows)](https://github.com/abde00037-lang/nova-launcher/releases/latest)
 [![Runtime](https://img.shields.io/badge/.NET-8.0%20EMBEDDED-512bd4?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/badge/LICENSE-CC%20BY--NC%204.0-0ea5e9?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![License](https://img.shields.io/badge/LICENSE-MIT-0ea5e9?style=for-the-badge)](LICENSE)
 
 <br />
 
@@ -35,19 +35,14 @@ The portable package keeps the application and its data under a launcher directo
   <img src="docs/screenshots/showcase.gif" alt="Nova Launcher — Animated Tour" width="96%" />
 </p>
 
-*Screenshots and animations are illustrative captures from an older version; the latest interface and version label may differ.*
-
 ---
 
-## Latest update — v2.1.16
+## Latest update — v2.1.11
 
-- AI quick setup now contains only the two requested providers: AgentRouter and OneAIKey. Their official OpenAI-compatible API base URLs are prefilled; model IDs are left blank because each provider's live catalog changes.
-- Fix white backgrounds in AI provider dropdowns and add ready-to-edit AgentRouter and OneAIKey setups for OpenAI-compatible and Anthropic APIs.
-- Add an in-app AI assistant and supervised agent; every write action requires explicit approval.
-- Browse mod snapshots with stored sizes and missing-file status. Restore with SHA-256 preflight and an automatic recovery snapshot; explicitly delete only selected archived snapshots after confirmation.
-- The workspace remains responsive across window sizes, with regressions covering the main pages and snapshot workflows.
-
-[Latest release and downloads](https://github.com/abde00037-lang/nova-launcher/releases/latest) · [All releases](https://github.com/abde00037-lang/nova-launcher/releases) · [Full changelog](CHANGELOG.md)
+- Restore the pre-AI launcher edition; AI Chat, provider setup, the agent, and AI CLI commands are not included.
+- The full and web installers permanently remove only the obsolete `<Nova root>\ai` folder containing AI provider settings and protected keys. Worlds, accounts, mods, and other launcher data are preserved.
+- Fix a v2.1.10 layout regression that left pages too small after inner scrolling, and prevent mod-page controls from overlapping on narrower windows.
+- The workspace now expands with the window; smaller windows still offer scrollbars when necessary.
 
 ## Previous update — v2.1.10
 
@@ -98,7 +93,7 @@ Back up the entire instance and worlds before updating. Snapshots and rollback a
 - An isolated test of the published v2.1.6 update resumed after two network interruptions, installed successfully, and preserved test data. [CI](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560382899) and the [release workflow](https://github.com/abde00037-lang/nova-launcher/actions/runs/45560649747) passed.
 - Back up important data first. Rollback is best-effort, not a guarantee against power loss or every failure. A checksum published alongside the package is not an independent digital signature.
 
-**Updating today:** Back up your launcher data, then use **Update & Restart** in Nova. For downloads and recovery, see the [latest release](https://github.com/abde00037-lang/nova-launcher/releases/latest) rather than installing this historical version. Preserve your data and verify downloads against the checksum file from the same release.
+**Updating:** Back up your launcher data, then use **Update & Restart** in Nova. If an older updater cannot download v2.1.6, close Nova, download [`nova-bin-win-x64.zip`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/nova-bin-win-x64.zip), verify it against [`SHA256SUMS.txt`](https://github.com/abde00037-lang/nova-launcher/releases/download/v2.1.6/SHA256SUMS.txt), extract it to a temporary folder, and copy its contents into your existing launcher's `bin` folder, replacing application files. Do not overwrite or delete your data folders. Restart Nova and check the displayed version.
 
 [Download v2.1.6](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.1.6) · [Full changelog](CHANGELOG.md)
 
@@ -149,7 +144,7 @@ Nova supports **both** official and offline play seamlessly from the **Accounts*
 2. **Standalone Offline Profiles:** Create instant local player handles with deterministic offline UUIDs for singleplayer, LAN worlds, and offline-mode servers — no prior online login or internet connection required.
 
 ### Windows SmartScreen & Antivirus Transparency
-Because Nova Launcher is a free, source-available community project without a paid `$400+/yr` commercial EV code-signing certificate:
+Because Nova Launcher is a free, open-source project without a paid `$400+/yr` commercial EV code-signing certificate:
 - Windows Defender SmartScreen may show **"Windows protected your PC"** on first run — click **More info → Run anyway**.
 - Heuristic scanners occasionally flag tiny web downloaders (`Nova-Web-Setup.exe`) because they fetch `.zip` archives over HTTPS. If that happens, use **`Nova-Setup-Full.exe`** or **`Nova-Portable-Full-win-x64.zip`**, which contain 100% of files offline.
 - For v2.1.1, the four packages and checksums were built and uploaded by [GitHub Actions](https://github.com/abde00037-lang/nova-launcher/actions/runs/45464347081). For v2.1.0, the four binary assets were built and uploaded by [run #3](https://github.com/abde00037-lang/nova-launcher/actions/runs/45438579706); `SHA256SUMS.txt` was added separately afterwards. The [current release workflow](.github/workflows/release.yml) is configured to build these packages and generate the checksum file for future releases. GitHub also displays per-asset hashes.
@@ -267,26 +262,7 @@ You can copy the launcher and world data, but paths in instance settings may nee
 - **Vulnerability Reporting:** See [**SECURITY.md**](SECURITY.md)
 - **Release History:** See [**CHANGELOG.md**](CHANGELOG.md)
 
-## AI Assistant (Bring Your Own Key)
-
-Nova can talk to your own AI endpoint (no bundled keys, no Nova servers):
-
-- **Providers:** any OpenAI-compatible base URL (`.../v1`) or Anthropic-style base URL, each with an ordered model fallback chain — if a model fails, the next one answers.
-- **Keys:** stored per provider with Windows DPAPI under `ai/keys.dat` in the launcher root; never written in plaintext and never sent anywhere except the provider you configured.
-- **CLI today:** `nova-cli ai add <name> <openai|anthropic> <baseUrl> <models,csv>`, then `ai providers`, `ai models <name>`, `ai chat <name> <text>` (`--system`, `--max-tokens`, `--timeout`), `ai key <name>`, `ai remove <name>`.
-- **Privacy:** chat text and any logs you paste go to your provider. Review content before sending; the assistant never uploads worlds, accounts, or mods on its own.
-- **In-app chat:** the Workbench **AI Chat** page talks to the selected provider (provider picker plus MANAGE PROVIDERS dialog for name, protocol, base URL, model fallback chain and key).
-- **Supervised agent:** the chat and `nova-cli ai agent` can call launcher tools. Read-only tools (list profiles, profile detail, crash analysis, duplicate/dependency conflict scan, redacted log tail, and compatible mod-update check) run automatically. All write tools (toggle a mod, set memory, update/install mods, export a pack, or restore a mod snapshot) require an explicit approval dialog (`[y/N]` in the CLI); denied actions do nothing. Mod updates and installs create a verified mod-file snapshot first. The Mods page lets you browse, create, restore, and explicitly delete snapshots; it shows stored size and missing-file status. Restore verifies all SHA-256 hashes before changing files and saves a recovery snapshot first; later-added mods are disabled instead of deleted. Snapshot deletion requires confirmation and does not touch active mods. Snapshots do not include worlds or configs.
-- **Supervised writes with snapshots:** `install_mod`, `update_mods` and `restore_mods` create or use verified mod snapshots (`mods\.nova-mod-snapshots`) so a bad change rolls back; `export_pack` writes a pack zip into `packs\` without touching the profile. Every write shows an approval card first.
-
 ## License
 
-Nova Launcher's own source code, installer scripts, documentation, and repository assets are licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/) — full text in [LICENSE](LICENSE).
-
-- **Attribution:** keep the copyright notice and a link to the license when you share or adapt the project.
-- **NonCommercial:** use that is primarily intended for commercial advantage or monetary compensation is not permitted without separate written permission from the copyright holder.
-- **Scope note:** CC BY-NC 4.0 is not an OSI-approved open-source license, and Creative Commons does not recommend its licenses for software; the copyright holder chose it for this project.
-- **Earlier releases:** all releases except [v2.0.0](https://github.com/abde00037-lang/nova-launcher/releases/tag/v2.0.0) are now offered under CC BY-NC 4.0 as well; v2.0.0 remains under the MIT License. Copies of releases that were distributed under MIT before this change keep the MIT grant for those copies.
-- **Third-party material:** bundled or downloaded components keep their own licenses — for example the .NET runtime (MIT, (c) .NET Foundation and Contributors), Adoptium Java (GPL-2.0 with Classpath Exception), Minecraft and its assets (Mojang EULA), Forge (LGPL-2.1), and mods (their authors' licenses). Release packages ship [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) with the full attribution list. The CC license covers only Nova's own material.
-
-*Nova Launcher is an independent source-available project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
+Released under the [MIT License](LICENSE).
+*Nova Launcher is an independent open-source project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*

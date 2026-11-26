@@ -9,7 +9,6 @@ using System.Windows.Threading;
 using System.Reflection;
 using Nova.App;
 using Nova.App.ViewModels;
-using Nova.App.Views;
 using Nova.Core;
 
 internal static class Program
@@ -105,168 +104,6 @@ internal static class Program
     private static Rect Bounds(FrameworkElement element, Window window) =>
         element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize));
 
-
-    private static void AiProviderPresetRegression(string root)
-    {
-        var paths = new LauncherPaths(Path.Combine(root, "ai-provider-presets"));
-        Directory.CreateDirectory(paths.Root);
-        var window = new AiProvidersWindow(paths);
-        try
-        {
-            var presets = (ComboBox)(window.FindName("PresetCombo") ?? throw new Exception("AI provider preset list missing"));
-            var choices = presets.Items.OfType<ComboBoxItem>().Select(item => item.Content?.ToString()).ToArray();
-            Check(choices.SequenceEqual(new[] { "Choose a provider preset…", "AgentRouter", "OneAIKey" }),
-                  "AI quick setup exposes only AgentRouter and OneAIKey");
-
-            var name = (TextBox)window.FindName("NameBox")!;
-            var baseUrl = (TextBox)window.FindName("BaseUrlBox")!;
-            var models = (TextBox)window.FindName("ModelsBox")!;
-            var protocol = (ComboBox)window.FindName("ProtocolCombo")!;
-            presets.SelectedIndex = 1;
-            Check(name.Text == "AgentRouter" && baseUrl.Text == "https://agentrouter.org/v1" &&
-                  Equals(protocol.SelectedItem, AiProtocol.OpenAiCompatible) && string.IsNullOrWhiteSpace(models.Text),
-                  "AgentRouter preset uses its documented API base without a guessed model ID");
-            presets.SelectedIndex = 2;
-            Check(name.Text == "OneAIKey" && baseUrl.Text == "https://api.oneaiapikey.com/v1" &&
-                  Equals(protocol.SelectedItem, AiProtocol.OpenAiCompatible) && string.IsNullOrWhiteSpace(models.Text),
-                  "OneAIKey preset uses its documented API base without a guessed model ID");
-        }
-        finally { window.Close(); }
-    }
-
-    private static async Task AiChatRegression(string root)
-    {
-        int port;
-        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0)) { probe.Start(); port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
-        using var listener = new System.Net.HttpListener();
-        string? capturedRequest = null;
-        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-        listener.Start();
-        var server = Task.Run(async () =>
-        {
-            while (listener.IsListening)
-            {
-                System.Net.HttpListenerContext ctx;
-                try { ctx = await listener.GetContextAsync(); }
-                catch { break; }
-                _ = Task.Run(() =>
-                {
-                    using (var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding))
-                        capturedRequest = reader.ReadToEnd();
-                    string body = "{\"choices\":[{\"message\":{\"content\":\"HELLO-FROM-FAKE-PROVIDER\"}}]}";
-                    byte[] bytes = Encoding.UTF8.GetBytes(body);
-                    ctx.Response.StatusCode = 200;
-                    ctx.Response.ContentType = "application/json";
-                    ctx.Response.ContentLength64 = bytes.Length;
-                    ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
-                    ctx.Response.Close();
-                });
-            }
-        });
-        var paths = new LauncherPaths(Path.Combine(root, "ai-chat"));
-        Directory.CreateDirectory(paths.Root);
-        var vm = new Nova.App.ViewModels.AiChatViewModel(paths);
-        vm.InputText = "hello";
-        await vm.SendAsync();
-        Check(vm.Messages.Last().IsSystem && vm.Messages.Last().Text.Contains("nova-cli ai add"), "chat guides when no provider configured");
-        AiStore.SaveProvider(paths, new AiProvider { Name = "fake", Protocol = AiProtocol.OpenAiCompatible, BaseUrl = $"http://127.0.0.1:{port}/oai/v1", Models = new List<string> { "m1" } });
-        AiStore.SetKey(paths, "fake", "sk-fake-key");
-        vm.RefreshProviders();
-        Check(vm.Providers.Count == 1 && vm.SelectedProvider?.Name == "fake", "chat picks configured provider");
-        vm.InputText = "hello";
-        await vm.SendAsync();
-        Check(vm.Messages.Last().IsAssistant && vm.Messages.Last().Text == "HELLO-FROM-FAKE-PROVIDER", "chat reply rendered from provider");
-        Check(capturedRequest != null && capturedRequest.Contains("check_mod_updates") &&
-              capturedRequest.Contains("update_mods") && capturedRequest.Contains("install_mod") &&
-              capturedRequest.Contains("restore_mods") && capturedRequest.Contains("explicit approval"),
-              "chat system prompt describes current tools and approval rules");
-        Check(!File.ReadAllText(AiStore.KeysFile(paths)).Contains("sk-fake-key"), "chat key stays encrypted");
-        listener.Stop();
-        try { await server.WaitAsync(TimeSpan.FromSeconds(5)); } catch (TimeoutException) { }
-    }
-
-    private static bool? RunApprovalDialog(Window owner, string buttonAutomationId)
-    {
-        var spec = new AiToolSpec("install_mod", "Install a mod", "{}", false);
-        var call = new AiToolCall("call-1", "install_mod", "{\"instance_id\":\"fixture\",\"query\":\"example\"}");
-        var dialog = new AiApprovalWindow(spec, call) { Owner = owner };
-        Exception? callbackError = null;
-        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
-        {
-            try
-            {
-                var buttons = Descendants<Button>(dialog).ToArray();
-                var target = buttons.FirstOrDefault(button =>
-                    System.Windows.Automation.AutomationProperties.GetAutomationId(button) == buttonAutomationId);
-                Check(target != null, "AI approval card exposes " + buttonAutomationId);
-                Check(buttons.Any(button => Equals(button.Content, "ALLOW")) &&
-                      buttons.Any(button => Equals(button.Content, "DENY")),
-                      "AI approval card shows explicit allow and deny actions");
-                Check(Descendants<TextBlock>(dialog).Any(text => text.Text.Contains("install_mod")) &&
-                      Descendants<TextBlock>(dialog).Any(text => text.Text.Contains("fixture")),
-                      "AI approval card displays tool and arguments");
-                target!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            }
-            catch (Exception ex)
-            {
-                callbackError = ex;
-                dialog.Close();
-            }
-        }), DispatcherPriority.ContextIdle);
-        bool? result = dialog.ShowDialog();
-        if (callbackError != null) throw callbackError;
-        return result;
-    }
-
-    private static void AiApprovalRegression(Window owner)
-    {
-        Check(RunApprovalDialog(owner, "AiApproveDeny") == false, "AI write approval dialog denies on explicit deny");
-        Check(RunApprovalDialog(owner, "AiApproveAllow") == true, "AI write approval dialog allows on explicit allow");
-    }
-
-    private static async Task ModSnapshotsUiRegression(Window owner, string root)
-    {
-        string fixtureRoot = Path.Combine(root, "mod-snapshot-ui");
-        var paths = new LauncherPaths(fixtureRoot);
-        string game = Path.Combine(fixtureRoot, "instances", "fixture", "game");
-        string mods = Path.Combine(game, "mods");
-        Directory.CreateDirectory(mods);
-        File.WriteAllText(Path.Combine(mods, "ui-fixture.jar"), "isolated mod fixture");
-        var instance = new InstanceVm(new InstanceConfig
-        {
-            Id = "fixture", Name = "Snapshot UI fixture", GameDirectory = game, VersionId = "1.20.1-fabric"
-        }, 1, "test", null);
-        var vm = new MainViewModel(paths);
-        vm.Selected = instance;
-        var dialog = new ModSnapshotsWindow(vm, instance) { Owner = owner };
-        try
-        {
-            dialog.Show();
-            await Task.Delay(250);
-            Check(Descendants<Button>(dialog).Any(button =>
-                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsCreate"),
-                  "mod snapshots window exposes create action");
-            Check(Descendants<Button>(dialog).Any(button =>
-                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsRestore"),
-                  "mod snapshots window exposes restore action");
-            Check(Descendants<Button>(dialog).Any(button =>
-                      System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsDelete"),
-                  "mod snapshots window exposes confirmed delete action");
-            var list = (ListBox)(dialog.FindName("SnapshotsList") ?? throw new Exception("snapshot list missing"));
-            Check(list.Items.Count == 0, "mod snapshots window shows empty state for a new fixture");
-            var create = Descendants<Button>(dialog).First(button =>
-                System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "ModSnapshotsCreate");
-            create.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await WaitFor(() => list.Items.Count == 1, "snapshot UI create result");
-            await Task.Delay(100);
-            Check(Descendants<TextBlock>(dialog).Any(text => text.Text.StartsWith("size:", StringComparison.OrdinalIgnoreCase)),
-                  "mod snapshots window displays stored size");
-            Check(Directory.GetDirectories(Path.Combine(mods, ".nova-mod-snapshots")).Length == 1,
-                  "mod snapshots window creates a snapshot in the selected instance");
-        }
-        finally { dialog.Close(); }
-    }
-
     private static async Task LayoutRegression(string root)
     {
         Environment.SetEnvironmentVariable("NOVA_ROOT", root);
@@ -277,13 +114,11 @@ internal static class Program
         {
             window.Show();
             await Task.Delay(700);
-            AiProviderPresetRegression(root);
-            AiApprovalRegression(window);
             var workspace = (ScrollViewer)window.FindName("WorkspaceScroll");
             var host = (ContentControl)window.FindName("ContentHost");
             var showView = typeof(MainWindow).GetMethod("ShowView", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new Exception("ShowView missing");
-            foreach (var page in new[] { "Home", "Instances", "Versions", "Account", "Ai", "Mods", "Store", "Worlds", "Backups", "Logs", "Settings" })
+            foreach (var page in new[] { "Home", "Instances", "Versions", "Account", "Mods", "Store", "Worlds", "Backups", "Logs", "Settings" })
             {
                 showView.Invoke(window, new object[] { page });
                 await Task.Delay(250);
@@ -321,7 +156,6 @@ internal static class Program
             Check(Math.Abs(host.Width - Math.Max(host.MinWidth, workspace.ViewportWidth)) < 2 &&
                   Math.Abs(host.Height - Math.Max(host.MinHeight, workspace.ViewportHeight)) < 2,
                   "workspace expands again after resizing larger");
-            await ModSnapshotsUiRegression(window, root);
         }
         finally
         {
@@ -339,7 +173,7 @@ internal static class Program
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
         dispatcher.BeginInvoke(async () =>
         {
-            try { await Run(root); await LayoutRegression(root); await AiChatRegression(root); exit = 0; }
+            try { await Run(root); await LayoutRegression(root); exit = 0; }
             catch (Exception e) { Console.Error.WriteLine(e); }
             finally { dispatcher.BeginInvokeShutdown(DispatcherPriority.Background); }
         });

@@ -102,14 +102,10 @@ namespace NovaOfflineSetup
                                 if (rel.StartsWith("Nova/", StringComparison.OrdinalIgnoreCase))
                                 {
                                     rel = rel.Substring(5);
-                                    if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) &&
-                                        !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase) &&
-                                        !string.Equals(rel, "THIRD-PARTY-NOTICES.md", StringComparison.OrdinalIgnoreCase))
+                                    if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
                                         throw new InvalidDataException("Unexpected file in portable payload: " + raw);
                                 }
-                                else if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) &&
-                                         !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase) &&
-                                         !string.Equals(rel, "THIRD-PARTY-NOTICES.md", StringComparison.OrdinalIgnoreCase))
+                                else if (!rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !string.Equals(rel, "Start Nova.bat", StringComparison.OrdinalIgnoreCase))
                                     rel = "bin/" + rel;
                                 return rel;
                             });
@@ -128,6 +124,9 @@ namespace NovaOfflineSetup
                 {
                     throw new FileNotFoundException("Extraction completed, but Nova.exe was not found at " + novaExe);
                 }
+
+                // v2.1.11 is the final pre-AI edition. Remove only Nova's deprecated AI settings and protected keys.
+                SafeInstallerZip.RemoveDeprecatedAiData(targetRoot);
 
                 if (createShortcuts)
                 {

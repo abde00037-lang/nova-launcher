@@ -158,9 +158,6 @@ public sealed partial class MainViewModel : ObservableObject
 
 	public LauncherPaths Paths { get; }
 
-	/// <summary>Bring-your-own-key AI chat page state.</summary>
-	public AiChatViewModel AiChat { get; }
-
 	public ObservableCollection<InstanceVm> Instances { get; }
 
 	public ObservableCollection<ConsoleLine> ConsoleLines { get; }
@@ -1410,7 +1407,6 @@ public sealed partial class MainViewModel : ObservableObject
 		StoreVersionChoices = new ObservableCollection<StoreVersionVm>();
 		_storeSort = "downloads";
 		Paths = paths;
-		AiChat = new AiChatViewModel(paths);
 		Settings = LauncherSettings.Load(paths);
 		JavaLocator.RegisterRoot(paths.JavaHome);
 		_accountStore = new AccountStore(paths);
@@ -2145,49 +2141,6 @@ public sealed partial class MainViewModel : ObservableObject
 		{
 			await ModUpdater.RestoreBackupAsync(Path.Combine(instance.GameDirectory, "mods"), manifest);
 			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
-		}
-		finally { IsModUpdateBusy = false; }
-	}
-
-	public async Task<string> CreateModSnapshotAsync(InstanceVm instance)
-	{
-		if (Selected != instance || HasActiveModOperations || IsGameRunning)
-			throw new InvalidOperationException("Select this instance and close Minecraft before creating a mod snapshot.");
-		IsModUpdateBusy = true;
-		try
-		{
-			string folder = await Task.Run(() => ModSnapshot.CreateAsync(Path.Combine(instance.GameDirectory, "mods")));
-			string id = Path.GetFileName(folder);
-			AppendConsole("OK", "mod snapshot created: " + id);
-			return id;
-		}
-		finally { IsModUpdateBusy = false; }
-	}
-
-	public async Task<string> RestoreModSnapshotAsync(InstanceVm instance, string snapshotId)
-	{
-		if (Selected != instance || HasActiveModOperations || IsGameRunning)
-			throw new InvalidOperationException("Select this instance and close Minecraft before restoring a mod snapshot.");
-		IsModUpdateBusy = true;
-		try
-		{
-			string result = await Task.Run(() => ModSnapshot.RestoreAsync(Path.Combine(instance.GameDirectory, "mods"), snapshotId));
-			AppendConsole("OK", result);
-			if (Selected == instance) await LoadInstanceDetailsAsync(instance);
-			return result;
-		}
-		finally { IsModUpdateBusy = false; }
-	}
-
-	public async Task DeleteModSnapshotAsync(InstanceVm instance, string snapshotId)
-	{
-		if (Selected != instance || HasActiveModOperations || IsGameRunning)
-			throw new InvalidOperationException("Select this instance and close Minecraft before deleting a snapshot.");
-		IsModUpdateBusy = true;
-		try
-		{
-			await Task.Run(() => ModSnapshot.DeleteAsync(Path.Combine(instance.GameDirectory, "mods"), snapshotId));
-			AppendConsole("WARN", "mod snapshot permanently deleted: " + snapshotId);
 		}
 		finally { IsModUpdateBusy = false; }
 	}

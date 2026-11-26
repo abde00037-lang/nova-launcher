@@ -2,33 +2,8 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
-## [Unreleased]
-
-## [v2.1.16] — 2026-11-24
-- Simplify AI quick setup to exactly AgentRouter and OneAIKey; remove duplicated protocol-suffixed provider choices and invented provider-name variants.
-- Use each service's documented OpenAI-compatible API base and leave model IDs blank because both providers' model catalogs change; users supply exact IDs from their provider account.
-
-## [v2.1.15] — 2026-11-25
-- Permanently remove the rate-limited anonymous GitHub REST API from launcher update discovery. Use the public Atom feed first and the validated `/releases/latest` redirect as an independent fallback.
-- Keep OTA asset size discovery and mandatory SHA-256 verification before staging.
-
-## [v2.1.14] — 2026-11-24
-- Fix launcher update discovery on shared IPs by reading GitHub's public release Atom feed first, avoiding the anonymous REST API's per-IP rate limit; retain the REST API as a fallback.
-- Continue verifying OTA packages against SHA-256 before staging; the feed-based path keeps size checks bounded by the updater's package limit.
-
-## [v2.1.13] — 2026-11-24
-- Fix white backgrounds in AI provider and protocol dropdowns; give popup items and the provider list colors consistent with Nova's dark theme.
-- Add quick-setup presets for AgentRouter and OneAIKey using their documented OpenAI-compatible and Anthropic-compatible endpoints and model IDs.
-- Keep provider configurations editable and API keys protected locally with Windows DPAPI.
-
-## [v2.1.12] — 2026-11-24
-- Add the BYOK AI assistant with OpenAI-compatible and Anthropic protocols, model fallback, encrypted key storage, an in-app AI Chat page, and `nova-cli ai` management commands.
-- Add a supervised agent for both protocols. Read-only diagnostics can run automatically; every write tool requires explicit approval. Mod updates and installs create verified mod snapshots.
-- Add mod snapshot management in the Mods page: show stored size and missing-file state; create, restore, or permanently delete a selected archived snapshot after confirmation. Restore preflights all files, verifies SHA-256, saves a recovery snapshot, and disables later-added mods instead of deleting them.
-- Add a dedicated AI approval card and expanded regression coverage for agent tools, snapshot integrity/recovery/deletion, and GUI workflows.
-- Relicense the project from MIT to CC BY-NC 4.0 for releases except v2.0.0, which remains MIT; add third-party notices for the bundled .NET runtime, preserve those notices through offline installation, and describe external/runtime-downloaded components.
-
 ## [v2.1.11]
+- Restore the pre-AI launcher edition. The full and web installers remove only the obsolete `<Nova root>\ai` folder (provider configuration and protected API keys); Minecraft worlds, accounts, mods, and other launcher data remain untouched. This removal is permanent.
 - Fix a v2.1.10 regression where inner scrolling could shrink the whole page to the minimum workspace size, leaving unused space on larger windows.
 - Keep the mod-page header and filter controls from overlapping at narrower widths.
 - Add WPF layout regressions for all main pages, nested scrolling, resizing, and mod-control overlap.

@@ -23,15 +23,9 @@ foreach ($config in @('Nova.runtimeconfig.json', 'nova-cli.runtimeconfig.json'))
         throw "$config is not self-contained"
     }
 }
-$notices = Join-Path $PSScriptRoot '..\THIRD-PARTY-NOTICES.md'
-if (-not (Test-Path $notices)) { throw 'THIRD-PARTY-NOTICES.md missing from repository root' }
-Copy-Item $notices "$root/THIRD-PARTY-NOTICES.md" -Force
-Copy-Item $notices "$bin/THIRD-PARTY-NOTICES.md" -Force
-
-foreach ($file in @('Nova.exe', 'nova-cli.exe', 'Nova.Core.dll', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll', 'THIRD-PARTY-NOTICES.md')) {
+foreach ($file in @('Nova.exe', 'nova-cli.exe', 'Nova.Core.dll', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll')) {
     if (-not (Test-Path (Join-Path $bin $file))) { throw "Missing $file" }
 }
-if (-not (Test-Path (Join-Path $root 'THIRD-PARTY-NOTICES.md'))) { throw 'Missing THIRD-PARTY-NOTICES.md in portable root' }
 
 "@echo off`r`nstart `"`" `"%~dp0bin\Nova.exe`"" | Set-Content -Path "$root/Start Nova.bat" -Encoding ASCII
 Add-Type -AssemblyName System.IO.Compression.FileSystem

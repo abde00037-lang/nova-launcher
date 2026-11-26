@@ -191,15 +191,6 @@
                 </StackPanel>
               </RadioButton>
 
-              <TextBlock Text="ASSISTANT" Style="{StaticResource SectionLabel}" Margin="10,16,0,6" />
-
-              <RadioButton x:Name="NavAi" automation:AutomationProperties.AutomationId="NavAi" automation:AutomationProperties.Name="AI Chat" Style="{StaticResource NavButton}" Tag="Ai" Click="Nav_Click">
-                <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="&#xE8BD;" FontFamily="Segoe MDL2 Assets" FontSize="13" Width="24" VerticalAlignment="Center" />
-                  <TextBlock Text="AI Chat" VerticalAlignment="Center" />
-                </StackPanel>
-              </RadioButton>
-
               <TextBlock Text="LIBRARY &amp; MODS" Style="{StaticResource SectionLabel}" Margin="10,16,0,6" />
 
               <RadioButton x:Name="NavMods" automation:AutomationProperties.AutomationId="NavMods" automation:AutomationProperties.Name="Mods" Style="{StaticResource NavButton}" Tag="Mods" Click="Nav_Click">

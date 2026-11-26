@@ -12,7 +12,7 @@ try {
         $zipPath = Join-Path $root "$kind.zip"
         $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
         try {
-            $entries = @('Nova/bin/Nova.exe', 'Nova/bin/Nova.Core.dll', 'Nova/bin/THIRD-PARTY-NOTICES.md', 'Nova/THIRD-PARTY-NOTICES.md')
+            $entries = @('Nova/bin/Nova.exe', 'Nova/bin/Nova.Core.dll')
             if ($kind -eq 'bad') { $entries += 'Nova/../../outside.txt' }
             foreach ($name in $entries) {
                 $entry = $zip.CreateEntry($name)
@@ -26,20 +26,27 @@ try {
             $offlineSource $helperSource
         if ($LASTEXITCODE -ne 0) { throw 'Synthetic installer compilation failed' }
         $dest = Join-Path $root "install-$kind"
-        New-Item -ItemType Directory -Path "$dest/instances/demo/saves" -Force | Out-Null
+        New-Item -ItemType Directory -Path "$dest/instances/demo/saves", "$dest/ai" -Force | Out-Null
         Set-Content -Path "$dest/instances/demo/saves/sentinel.txt" -Value 'preserve'
+        Set-Content -Path "$dest/ai/providers.json" -Value 'old-ai-config'
+        Set-Content -Path "$dest/ai/keys.dat" -Value 'protected-test-key'
         $proc = Start-Process $exe -ArgumentList @('--silent','--dir',"`"$dest`"") -Wait -PassThru
-        if ($kind -eq 'good' -and ($proc.ExitCode -ne 0 -or !(Test-Path "$dest/bin/Nova.exe") -or !(Test-Path "$dest/THIRD-PARTY-NOTICES.md"))) { throw 'Normal installer test failed' }
+        if ($kind -eq 'good' -and ($proc.ExitCode -ne 0 -or !(Test-Path "$dest/bin/Nova.exe"))) { throw 'Normal installer test failed' }
         if ($kind -eq 'bad' -and ($proc.ExitCode -eq 0 -or (Test-Path "$dest/bin/Nova.exe") -or (Test-Path "$root/outside.txt"))) { throw 'Installer accepted path traversal' }
+        if ($kind -eq 'good' -and (Test-Path "$dest/ai")) { throw 'Successful rollback installer retained deprecated AI data' }
+        if ($kind -eq 'bad' -and (!(Test-Path "$dest/ai/providers.json") -or (Get-Content "$dest/ai/providers.json" -Raw).Trim() -ne 'old-ai-config')) { throw 'Failed installer modified AI data before rollback completed' }
         if ((Get-Content "$dest/instances/demo/saves/sentinel.txt" -Raw).Trim() -ne 'preserve') { throw 'Installer changed world data' }
     }
     if ($FullInstaller) {
         $exe = (Resolve-Path $FullInstaller).Path
         $dest = Join-Path $root 'install-real'
-        New-Item -ItemType Directory -Path "$dest/instances/demo/saves" -Force | Out-Null
+        New-Item -ItemType Directory -Path "$dest/instances/demo/saves", "$dest/ai" -Force | Out-Null
         Set-Content -Path "$dest/instances/demo/saves/sentinel.txt" -Value 'preserve'
+        Set-Content -Path "$dest/ai/providers.json" -Value 'old-ai-config'
+        Set-Content -Path "$dest/ai/keys.dat" -Value 'protected-test-key'
         $proc = Start-Process $exe -ArgumentList @('--silent','--dir',"`"$dest`"") -Wait -PassThru
         if ($proc.ExitCode -ne 0 -or !(Test-Path "$dest/bin/Nova.exe")) { throw "Full installer failed with $($proc.ExitCode)" }
+        if (Test-Path "$dest/ai") { throw 'Full rollback installer retained deprecated AI data' }
         & "$dest/bin/nova-cli.exe" help | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Installed CLI could not start' }
         if ((Get-Content "$dest/instances/demo/saves/sentinel.txt" -Raw).Trim() -ne 'preserve') { throw 'Full installer changed world data' }

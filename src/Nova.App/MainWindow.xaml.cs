@@ -315,13 +315,6 @@ public partial class MainWindow : Window
 			val = (UserControl)(object)settingsView;
 			break;
 		}
-		case "ai":
-		{
-			AiView aiView = new AiView();
-			((FrameworkElement)aiView).DataContext = _viewModel;
-			val = (UserControl)(object)aiView;
-			break;
-		}
 		default:
 		{
 			HomeView homeView = new HomeView();

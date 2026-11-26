@@ -59,7 +59,6 @@
                 Visibility="{Binding HasPendingModUpdates, Converter={StaticResource BoolVis}}"
                 Click="UpdateAll_Click" />
         <Button Content="RESTORE MOD" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" ToolTip="Restore one saved mod version from its backup.json" Click="RestoreMod_Click" />
-        <Button Content="MOD SNAPSHOTS" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" ToolTip="Browse, create, and safely restore verified mod snapshots" Click="ModSnapshots_Click" />
         <Button Content="FULL CATALOG" Style="{StaticResource PrimaryButton}" FontSize="10.5" Padding="13,8" Margin="6,0,0,0" Click="OpenStore_Click" />
         <Button Content="MODS DIR" Style="{StaticResource GhostButton}" FontSize="10.5" Padding="12,8" Margin="6,0,0,0" Click="OpenFolder_Click" />
       </WrapPanel>
