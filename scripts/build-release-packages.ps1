@@ -30,6 +30,15 @@ foreach ($file in @('Nova.exe', 'nova-cli.exe', 'Nova.Core.dll', 'coreclr.dll', 
 # Debug symbols stay out of release packages (smaller download, no source paths leak).
 Get-ChildItem $bin -Filter '*.pdb' -ErrorAction SilentlyContinue | Remove-Item -Force
 
+# Licensing artifacts ship inside every package.
+$license = Join-Path $PSScriptRoot '..\LICENSE'
+$notices = Join-Path $PSScriptRoot '..\THIRD-PARTY-NOTICES.md'
+if (-not (Test-Path $license)) { throw 'LICENSE missing from repository root' }
+if (-not (Test-Path $notices)) { throw 'THIRD-PARTY-NOTICES.md missing from repository root' }
+Copy-Item $license "$root/LICENSE" -Force
+Copy-Item $notices "$root/THIRD-PARTY-NOTICES.md" -Force
+Copy-Item $notices "$bin/THIRD-PARTY-NOTICES.md" -Force
+
 "@echo off`r`nstart `"`" `"%~dp0bin\Nova.exe`"" | Set-Content -Path "$root/Start Nova.bat" -Encoding ASCII
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $portableZip = Join-Path $OutputDir 'Nova-Portable-Full-win-x64.zip'

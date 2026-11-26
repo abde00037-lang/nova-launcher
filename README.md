@@ -275,5 +275,13 @@ You can copy the launcher and world data, but paths in instance settings may nee
 
 ## License
 
-Released under the [MIT License](LICENSE).  
-*Nova Launcher is an independent open-source project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*
+## License
+
+Nova Launcher's source code, installer scripts, documentation, and repository assets are licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](LICENSE).
+
+- **Attribution:** keep the copyright notice and a link to the license when you share or adapt the project.
+- **NonCommercial:** use that is primarily intended for commercial advantage or monetary compensation is not permitted without separate written permission from the copyright holder.
+- **Scope note:** CC BY-NC 4.0 is not an OSI-approved open-source license; the copyright holder chose it for this project. Copies of earlier releases that were distributed under the MIT License keep the MIT grant for those copies, and v2.0.0 remains MIT.
+- **Third-party material:** bundled or downloaded components keep their own licenses - for example the .NET runtime (MIT), Adoptium Java (GPL-2.0 with Classpath Exception), Minecraft and its assets (Mojang EULA), Forge (LGPL-2.1), and mods (their authors' licenses). Release packages ship [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+*Nova Launcher is an independent source-available project and is not affiliated with or endorsed by Mojang Studios or Microsoft.*

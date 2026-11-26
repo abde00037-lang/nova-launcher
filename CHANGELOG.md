@@ -2,6 +2,10 @@
 
 All notable changes to **Nova Launcher** (*Nova Workbench UI*) are documented in this file.
 
+## [v3.0.1] - 2026-11-26
+- Licensing restored: the repository LICENSE is back to the full Creative Commons Attribution-NonCommercial 4.0 International text, the README license sections (English and Arabic) describe CC BY-NC 4.0 again, and THIRD-PARTY-NOTICES.md is back at the repository root. The rollback to the v2.1.11 tree had unintentionally reverted these to the pre-2.1.12 MIT files. Copies of earlier releases that were distributed under the MIT License keep the MIT grant for those copies; v2.0.0 remains MIT.
+- Release packages now ship LICENSE (portable root) and THIRD-PARTY-NOTICES.md (portable root and bin) inside every portable and OTA archive.
+
 ## [v3.0.0] - 2026-11-26
 - Big maintenance release on the v2.1.11 feature set: update discovery now reads GitHub's public releases.atom feed with the /releases/latest redirect as an independent fallback, removing the rate-limited api.github.com call (403 behind shared IPs) that returned with the rollback.
 - nova-cli now resolves its default data root to the launcher folder when run from bin\ (previously it forked data into bin\data).
